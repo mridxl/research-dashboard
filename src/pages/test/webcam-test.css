@@ -1,0 +1,315 @@
+/* FaceFrame-style UI for webcam-test — matches index.html + style.css */
+
+.webcam-test-shell {
+  position: relative;
+  width: 540px;
+  height: 540px;
+  border-radius: 6px;
+  overflow: hidden;
+  flex-shrink: 0;
+  background: #000;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.08),
+    0 20px 60px rgba(0, 0, 0, 0.6);
+}
+
+.webcam-test-shell .webcam-video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scaleX(-1);
+}
+
+.webcam-ellipse-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  transition: filter 0.4s ease;
+}
+
+.webcam-ellipse-svg.state-success {
+  filter: drop-shadow(0 0 18px rgba(34, 199, 106, 0.35));
+}
+
+.webcam-ellipse-svg.state-fail {
+  filter: drop-shadow(0 0 10px rgba(232, 53, 53, 0.25));
+}
+
+.webcam-ellipse-ring {
+  transition:
+    stroke 0.35s ease,
+    filter 0.35s ease;
+}
+
+.webcam-ellipse-ring.animating {
+  animation: webcam-pulse-ring 2s linear infinite;
+}
+
+@keyframes webcam-pulse-ring {
+  0% {
+    stroke-dashoffset: 0;
+  }
+  100% {
+    stroke-dashoffset: -60;
+  }
+}
+
+.webcam-status-pill {
+  position: absolute;
+  bottom: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(8, 8, 20, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 100px;
+  padding: 6px 14px;
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+  backdrop-filter: blur(8px);
+  z-index: 20;
+  color: #e8e8f0;
+}
+
+.webcam-debug-panel {
+  position: absolute;
+  right: 12px;
+  top: 12px;
+  z-index: 40;
+  max-width: min(92%, 390px);
+  max-height: 48%;
+  overflow: auto;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(4, 7, 18, 0.88);
+  padding: 10px 12px;
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New',
+    monospace;
+  font-size: 0.66rem;
+  line-height: 1.45;
+  color: #dbdef2;
+  white-space: pre-wrap;
+}
+
+.webcam-light-pill {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  z-index: 25;
+  display: flex;
+  max-width: min(88%, 360px);
+  flex-direction: column;
+  gap: 4px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  padding: 8px 12px;
+  backdrop-filter: blur(8px);
+}
+
+.webcam-light-pill.good {
+  background: rgba(34, 199, 106, 0.18);
+  border-color: rgba(34, 199, 106, 0.45);
+}
+
+.webcam-light-pill.warn {
+  background: rgba(232, 53, 53, 0.16);
+  border-color: rgba(232, 53, 53, 0.45);
+}
+
+.webcam-light-title {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #f5f6ff;
+}
+
+.webcam-light-tip {
+  font-size: 0.68rem;
+  color: #d6d8e7;
+}
+
+.webcam-instruction-card {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: 58px;
+  z-index: 24;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(8, 8, 20, 0.7);
+  padding: 10px 12px;
+  backdrop-filter: blur(8px);
+}
+
+.webcam-instruction-text {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #f2f3fc;
+}
+
+.webcam-instruction-subtext {
+  margin-top: 4px;
+  font-size: 0.68rem;
+  color: #bfc3de;
+}
+
+.webcam-direction-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 22;
+  pointer-events: none;
+}
+
+.webcam-direction-cue {
+  position: absolute;
+  display: inline-flex;
+  height: 40px;
+  width: 40px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  border: 1px solid rgba(132, 186, 255, 0.95);
+  background: linear-gradient(180deg, #4a90f5 0%, #276fda 100%);
+  color: #ffffff;
+  font-size: 1.2rem;
+  font-weight: 700;
+  line-height: 1;
+  text-shadow: 0 1px 0 rgba(7, 22, 50, 0.45);
+  box-shadow:
+    0 8px 16px rgba(10, 32, 73, 0.38),
+    0 0 0 1px rgba(186, 218, 255, 0.28);
+  opacity: 0.95;
+  transform: translate(var(--cue-x, 0), var(--cue-y, 0)) scale(1);
+  transition:
+    opacity 0.28s ease,
+    box-shadow 0.28s ease,
+    transform 0.28s ease;
+}
+
+.webcam-direction-cue.cue-up {
+  left: 50%;
+  top: 88px;
+  --cue-x: -50%;
+}
+
+.webcam-direction-cue.cue-down {
+  left: 50%;
+  bottom: 126px;
+  --cue-x: -50%;
+}
+
+.webcam-direction-cue.cue-left {
+  left: 84px;
+  top: 50%;
+  --cue-y: -50%;
+}
+
+.webcam-direction-cue.cue-right {
+  right: 84px;
+  top: 50%;
+  --cue-y: -50%;
+}
+
+.webcam-direction-cue.cue-forward {
+  left: 50%;
+  top: 50%;
+  --cue-x: -50%;
+  --cue-y: -50%;
+}
+
+.webcam-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #7070a0;
+  flex-shrink: 0;
+  transition:
+    background 0.3s ease,
+    box-shadow 0.3s ease;
+}
+
+.webcam-status-dot.dot-active {
+  background: #4a90f5;
+  box-shadow: 0 0 6px #4a90f5;
+}
+
+.webcam-status-dot.dot-fail {
+  background: #e83535;
+  box-shadow: 0 0 6px #e83535;
+}
+
+.webcam-status-dot.dot-success {
+  background: #22c76a;
+  box-shadow: 0 0 8px #22c76a;
+}
+
+.webcam-instructions {
+  flex: 1;
+  max-width: 300px;
+  padding-top: 4px;
+}
+
+.webcam-inst-title {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #7070a0;
+  margin-bottom: 18px;
+}
+
+.webcam-inst-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 32px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.webcam-inst-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: #7070a0;
+  padding: 10px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
+  background: #0f0f1e;
+  transition:
+    color 0.3s,
+    border-color 0.3s,
+    background 0.3s;
+}
+
+.webcam-inst-item.active {
+  color: #e8e8f0;
+  border-color: rgba(74, 144, 245, 0.4);
+  background: rgba(74, 144, 245, 0.07);
+}
+
+.webcam-inst-num {
+  font-size: 0.6rem;
+  letter-spacing: 0.08em;
+  color: #4a90f5;
+  flex-shrink: 0;
+}
+
+@media (max-width: 860px) {
+  .webcam-test-shell {
+    width: 92vw;
+    height: 92vw;
+  }
+  .webcam-instructions {
+    max-width: 92vw;
+  }
+}

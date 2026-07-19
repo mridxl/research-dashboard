@@ -1,0 +1,452 @@
+import { useEffect, useRef, useState } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router';
+
+import { X } from 'lucide-react';
+import { toast } from 'sonner';
+
+import { PhoneInput } from '@/components/auth/PhoneInput';
+import { createResearchSession } from '@/lib/api/research';
+import { fillupFormSchema } from '@/lib/validations/fillup';
+import { validate } from '@/lib/validations/validate';
+import { useTestStore } from '@/stores/testStore';
+
+const SCREEN_SIZES = [12.4, 13, 14, 15.6, 17, 19, 21.5, 24, 27, 32] as const;
+const LANGUAGES = ['english', 'hindi'] as const;
+const FACE_MODEL_FILES = [
+  'tiny_face_detector_model-weights_manifest.json',
+  'tiny_face_detector_model.bin',
+  'face_landmark_68_tiny_model-weights_manifest.json',
+  'face_landmark_68_tiny_model.bin',
+] as const;
+const GENDERS = [
+  { value: 'male', label: 'Male' },
+  { value: 'female', label: 'Female' },
+  { value: 'other', label: 'Other' },
+] as const;
+
+interface PrefillData {
+  patientName?: string;
+  dateOfBirth?: string;
+  patientGender?: string;
+  guardianPhone?: string;
+}
+
+export const Fillup = () => {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const setTestData = useTestStore(s => s.setTestData);
+  const resetTestData = useTestStore(s => s.resetTestData);
+
+  const prefillData = (location.state as { prefill?: PrefillData } | null)?.prefill;
+
+  useEffect(() => {
+    resetTestData();
+  }, [resetTestData]);
+
+  useEffect(() => {
+    const base = import.meta.env.BASE_URL;
+    void Promise.all(
+      FACE_MODEL_FILES.map(async file => {
+        const response = await fetch(`${base}models/${file}`, { cache: 'force-cache' });
+        if (!response.ok) {
+          throw new Error(`Failed to prefetch ${file}: ${response.status}`);
+        }
+      })
+    ).catch(error => {
+      console.warn('[Fillup] Face model prefetch failed', error);
+    });
+  }, []);
+
+  const [dateOfBirth, setDateOfBirth] = useState(prefillData?.dateOfBirth || '');
+  const [consent, setConsent] = useState(true);
+  const [guardianPhone, setGuardianPhone] = useState(prefillData?.guardianPhone || '');
+  const [patientName, setPatientName] = useState(prefillData?.patientName || '');
+  const [patientGender, setPatientGender] = useState(prefillData?.patientGender || '');
+  const [screenSize, setScreenSize] = useState(Number(localStorage.getItem('screenSize')) || 0);
+  const [selectedLanguage, setSelectedLanguage] = useState('');
+  const [videoCount, setVideoCount] = useState<1 | 2>(1);
+  const [showConsentModal, setShowConsentModal] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const dobInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const handleBack = () => {
+      resetTestData();
+      navigate('/dashboard', { replace: true });
+    };
+
+    window.addEventListener('popstate', handleBack);
+    return () => window.removeEventListener('popstate', handleBack);
+  }, [resetTestData, navigate]);
+
+  const handleNextClick = async () => {
+    if (dateOfBirth) {
+      const year = new Date(dateOfBirth).getFullYear();
+      const currentYear = new Date().getFullYear();
+      if (year < 1900 || year > currentYear) {
+        toast.error('Please enter a valid date of birth');
+        return;
+      }
+    }
+
+    const data = validate(fillupFormSchema, {
+      patientName,
+      dateOfBirth,
+      patientGender: patientGender || undefined,
+      guardianPhone,
+      screenSize,
+      selectedLanguage: selectedLanguage || undefined,
+      videoCount,
+      consent,
+    });
+
+    if (!data) return;
+
+    const patientInfo = {
+      name: data.patientName,
+      dob: data.dateOfBirth,
+      gender: data.patientGender,
+      guardian_phone: data.guardianPhone ?? '',
+    };
+
+    const metadata = {
+      camera_resolution: { width: 0, height: 0 },
+      screen_resolution: { width: 0, height: 0 },
+      screen_size_inch: data.screenSize,
+      video_language: data.selectedLanguage,
+      camera_used: '',
+    };
+
+    setIsSubmitting(true);
+    try {
+      const session = await createResearchSession({
+        patient_info: patientInfo,
+        metadata,
+        data_usage_consent: data.consent,
+        video_count: data.videoCount,
+      });
+
+      setTestData({
+        session_id: session.session_id,
+        patient_info: patientInfo,
+        metadata,
+        data_usage_consent: data.consent,
+        video_count: session.video_count,
+        current_video_index: 1,
+        uploaded_test_ids: [],
+      });
+
+      navigate('/test/instructions');
+    } catch (error) {
+      console.error('[Fillup] Failed to create research session', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to start research session');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setDateOfBirth(e.target.value);
+  };
+
+  const handleLanguageChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setSelectedLanguage(e.target.value);
+  };
+
+  return (
+    <div className="flex flex-col justify-between h-full min-h-screen dark bg-background">
+      <div className="flex flex-col justify-center items-center py-8 grow">
+        <div className="flex flex-row justify-between items-center px-4 w-full max-w-7xl">
+          <div className="flex flex-col gap-6 items-start px-8">
+            <div className="inline-block relative m-auto">
+              <div className="absolute inset-0 from-blue-500 rounded-lg opacity-60 blur-lg to-primary bg-linar-to-r"></div>
+              <span className="relative z-10 text-4xl font-semibold tracking-wide text-foreground">
+                Aignosis Research
+              </span>
+            </div>
+
+            <div className="flex flex-col space-y-4 max-w-sm">
+              <p className="text-2xl text-center text-foreground font-manrope">
+                Please take the assessment to{' '}
+                <span className="text-left">begin with screening</span>
+              </p>
+              <p className="px-4 py-2 text-sm text-center font-raleway text-muted-foreground">
+                Assessment duration: 5 mins per video run
+              </p>
+            </div>
+          </div>
+
+          <div className="mx-8 w-[50vw] rounded-2xl bg-card/40 backdrop-blur-sm p-8 shadow-lg border border-border/50">
+            <h2 className="mb-5 text-2xl font-semibold text-center text-card-foreground font-raleway">
+              Research screening intake
+            </h2>
+
+            <form className="space-y-4" autoComplete="off">
+              <div className="grid grid-cols-1 sm:grid-cols-[180px_1fr] items-center gap-2 sm:gap-4">
+                <label
+                  htmlFor="child-name-input"
+                  className="text-base font-medium text-left text-foreground"
+                >
+                  {"Child's name"}
+                </label>
+                <input
+                  id="child-name-input"
+                  type="text"
+                  placeholder="Name"
+                  value={patientName}
+                  onChange={e => setPatientName(e.target.value)}
+                  className="w-full rounded-lg border border-border bg-input px-4 py-2.5 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-[180px_1fr] items-center gap-2 sm:gap-4">
+                <label
+                  htmlFor="dob-input"
+                  className="text-base font-medium text-left text-foreground"
+                >
+                  {"Child's date of birth"}
+                </label>
+                <div
+                  className="inline-flex w-full"
+                  onClick={() => dobInputRef.current?.showPicker()}
+                >
+                  <input
+                    type="date"
+                    id="dob-input"
+                    name="dob"
+                    ref={dobInputRef}
+                    value={dateOfBirth}
+                    onChange={handleDateChange}
+                    min="1900-01-01"
+                    max={new Date().toISOString().split('T')[0]}
+                    className="pointer-events-none w-full rounded-lg border border-border bg-input px-4 py-[0.6rem] text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                    style={{ colorScheme: 'dark' }}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-[180px_1fr] items-center gap-2 sm:gap-4">
+                <label
+                  htmlFor="gender-select"
+                  className="text-base font-medium text-left text-foreground"
+                >
+                  {"Child's gender"}
+                </label>
+                <select
+                  id="gender-select"
+                  value={patientGender}
+                  required
+                  onChange={e => setPatientGender(e.target.value as 'male' | 'female' | 'other')}
+                  className="w-full rounded-lg border border-border bg-input px-4 py-2.5 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                >
+                  <option value="" disabled className="bg-popover text-muted-foreground">
+                    Select Gender
+                  </option>
+                  {GENDERS.map(gender => (
+                    <option
+                      key={gender.value}
+                      value={gender.value}
+                      className="bg-popover text-popover-foreground"
+                    >
+                      {gender.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-[180px_1fr] items-center gap-2 sm:gap-4">
+                <label
+                  htmlFor="guardian-phone-input"
+                  className="text-base font-medium text-left text-foreground"
+                >
+                  {"Parent/guardian's phone number (optional)"}
+                </label>
+                <PhoneInput
+                  value={guardianPhone}
+                  onChange={value => setGuardianPhone(value || '')}
+                  defaultCountry="IN"
+                  placeholder="Patient Guardian Phone"
+                  className="w-full text-foreground"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-[180px_1fr] items-center gap-2 sm:gap-4">
+                <label
+                  htmlFor="screen-size-select"
+                  className="text-base font-medium text-left text-foreground"
+                >
+                  Screen Size
+                </label>
+                <select
+                  id="screen-size-select"
+                  value={screenSize}
+                  required
+                  onChange={e => {
+                    const numValue = Number(e.target.value);
+                    setScreenSize(numValue);
+                    localStorage.setItem('screenSize', numValue.toString());
+                  }}
+                  className="w-full rounded-lg border border-border bg-input px-4 py-2.5 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                >
+                  <option value="0" disabled className="bg-popover text-muted-foreground">
+                    Select Screen Size (inches)
+                  </option>
+                  {SCREEN_SIZES.map(size => (
+                    <option key={size} value={size} className="bg-popover text-popover-foreground">
+                      {size}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-[180px_1fr] items-center gap-2 sm:gap-4">
+                <label
+                  htmlFor="video-count-select"
+                  className="text-base font-medium text-left text-foreground"
+                >
+                  Video Runs
+                </label>
+                <select
+                  id="video-count-select"
+                  value={videoCount}
+                  required
+                  onChange={e => setVideoCount(Number(e.target.value) as 1 | 2)}
+                  className="w-full rounded-lg border border-border bg-input px-4 py-2.5 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                >
+                  <option value={1} className="bg-popover text-popover-foreground">
+                    1 video run
+                  </option>
+                  <option value={2} className="bg-popover text-popover-foreground">
+                    2 video runs (full capture each time)
+                  </option>
+                </select>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-[180px_1fr] items-center gap-2 sm:gap-4">
+                <label
+                  htmlFor="language-select"
+                  className="text-base font-medium text-left text-foreground"
+                >
+                  Language
+                </label>
+                <select
+                  id="language-select"
+                  value={selectedLanguage}
+                  required
+                  onChange={handleLanguageChange}
+                  className="w-full rounded-lg border border-border bg-input px-4 py-2.5 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring capitalize"
+                >
+                  <option value="" disabled className="bg-popover text-muted-foreground">
+                    Select Language
+                  </option>
+                  {LANGUAGES.map(language => (
+                    <option
+                      key={language}
+                      value={language}
+                      className="capitalize bg-popover text-popover-foreground"
+                    >
+                      {language}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="p-4 mt-6 rounded-lg border border-border bg-muted">
+                <div className="flex items-start space-x-3">
+                  <input
+                    type="checkbox"
+                    checked={consent}
+                    onChange={e => setConsent(e.target.checked)}
+                    className="mt-1 w-5 h-5 accent-primary focus:ring-2 focus:ring-ring"
+                    id="consent-checkbox"
+                  />
+                  <div className="flex-1">
+                    <label
+                      htmlFor="consent-checkbox"
+                      className="text-sm cursor-pointer text-foreground"
+                    >
+                      I consent to data usage for research purposes.{' '}
+                      <button
+                        type="button"
+                        onClick={() => setShowConsentModal(true)}
+                        className="underline text-primary hover:text-primary/80"
+                      >
+                        View details
+                      </button>
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-2 justify-center items-center pt-2 max-sm:flex-col">
+                <Link
+                  to="/dashboard"
+                  onClick={() => resetTestData()}
+                  className="mt-4 flex w-[150px] items-center justify-center rounded-full border border-primary px-6 py-3 font-semibold text-foreground hover:bg-primary hover:text-primary-foreground transition-colors"
+                >
+                  Back
+                </Link>
+
+                <button
+                  type="button"
+                  onClick={handleNextClick}
+                  disabled={isSubmitting}
+                  className="mt-4 flex w-[150px] items-center justify-center rounded-full border border-primary px-6 py-3 font-semibold text-foreground hover:bg-primary hover:text-primary-foreground transition-colors disabled:opacity-50"
+                >
+                  {isSubmitting ? 'Starting...' : 'Next'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+
+      {showConsentModal && (
+        <div className="flex fixed inset-0 z-50 justify-center items-center p-4">
+          <div
+            className="absolute inset-0 backdrop-blur-sm bg-black/50"
+            onClick={() => setShowConsentModal(false)}
+          ></div>
+          <div className="relative max-h-[80vh] w-full max-w-120 overflow-y-auto rounded-2xl bg-card border border-border p-6 shadow-xl">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold text-card-foreground">Data Usage Consent</h3>
+              <button
+                onClick={() => setShowConsentModal(false)}
+                className="transition-colors text-muted-foreground hover:text-foreground"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="text-sm text-muted-foreground">
+              <p className="mb-3">
+                By providing your consent, you agree that your data may be used for research
+                purposes to improve our services and advance understanding of developmental
+                disorders in children.
+              </p>
+              <p className="mb-3">
+                <strong className="text-foreground">We ensure:</strong>
+              </p>
+              <ul className="pl-5 mb-4 space-y-1 list-disc">
+                <li>Your data will be securely stored and protected</li>
+                <li>Personal information will be anonymized where necessary</li>
+                <li>Data will only be used for legitimate research purposes</li>
+                <li>You can withdraw consent at any time by contacting us</li>
+              </ul>
+              <p className="text-xs text-muted-foreground/80">
+                For questions about data usage, please contact us at support@aignosis.in
+              </p>
+            </div>
+            <div className="flex justify-end mt-6">
+              <button
+                onClick={() => setShowConsentModal(false)}
+                className="px-4 py-2 rounded-lg transition-colors text-primary-foreground bg-primary hover:bg-primary/90"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};

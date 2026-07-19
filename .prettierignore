@@ -1,0 +1,13 @@
+node_modules
+dist
+build
+coverage
+.git
+public
+src/assets
+*.min.js
+*.map
+.cache
+pnpm-lock.yaml
+pnpm-lock.yaml
+vite.config.*

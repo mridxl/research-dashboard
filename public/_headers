@@ -1,0 +1,10 @@
+/*
+  X-Frame-Options: DENY
+  Content-Security-Policy: frame-ancestors 'none'
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+
+# If you need to embed specific routes in the future, override above with allow-list, e.g.:
+# /embed/*
+#   X-Frame-Options: SAMEORIGIN
+#   Content-Security-Policy: frame-ancestors https://aignosis.in
