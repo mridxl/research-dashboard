@@ -1,9 +1,9 @@
-import { useEffect } from "react";
-import { Navigate, useLocation } from "react-router";
+import { useEffect } from 'react';
+import { Navigate, useLocation } from 'react-router';
 
-import { Loader2 } from "lucide-react";
+import { Loader2 } from 'lucide-react';
 
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth } from '@/hooks/useAuth';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;

@@ -14,7 +14,7 @@ export const fillupFormSchema = z.object({
   selectedLanguage: z.enum(LANGUAGES, {
     message: 'Please select a language',
   }),
-  videoCount: z.union([z.literal(1), z.literal(2)]),
+  stimulusVersions: z.array(z.enum(['1', '2'])).min(1, 'Please select at least one video version'),
   consent: z
     .boolean()
     .refine(val => val === true, { message: 'Please provide consent to proceed' }),

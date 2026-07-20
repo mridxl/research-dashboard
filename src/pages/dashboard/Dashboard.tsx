@@ -1,9 +1,21 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router';
 
-import { Pencil, Play } from 'lucide-react';
+import { Check, Minus, Pencil, Play, RotateCcw, Trash2 } from 'lucide-react';
+import { toast } from 'sonner';
 
 import { GroundTruthDialog } from '@/components/dashboard/GroundTruthDialog';
+import { PendingUploadsCard } from '@/components/dashboard/PendingUploadsCard';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -16,9 +28,17 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { useMutation } from '@/hooks/useMutation';
 import { useQuery } from '@/hooks/useQuery';
-import { getResearchSessions, type ResearchSessionSummary } from '@/lib/api/research';
+import {
+  deleteResearchSession,
+  getResearchSession,
+  getResearchSessions,
+  type ResearchSessionSummary,
+  type StimulusVersion,
+} from '@/lib/api/research';
 import { formatDateShort } from '@/lib/utils';
+import { useTestStore } from '@/stores/testStore';
 
 const DIAGNOSIS_LABELS: Record<string, string> = {
   autistic: 'Autistic',
@@ -26,24 +46,110 @@ const DIAGNOSIS_LABELS: Record<string, string> = {
   uncertain: 'Uncertain',
 };
 
+interface SessionRun {
+  video_index: number;
+  version: StimulusVersion;
+  uploaded: boolean;
+}
+
+/** The session's planned runs, each flagged with whether its recording has landed. */
+const sessionRuns = (session: ResearchSessionSummary): SessionRun[] =>
+  (session.stimulus_versions ?? []).map((version, index) => ({
+    video_index: index + 1,
+    version,
+    uploaded: session.uploaded_runs.some(run => run.video_index === index + 1),
+  }));
+
+/** A session that was created but abandoned before any recording was uploaded. */
+const isPendingSession = (session: ResearchSessionSummary) => session.uploaded_runs.length === 0;
+
 export const Dashboard = () => {
   const navigate = useNavigate();
+  const resetTestData = useTestStore(s => s.resetTestData);
+  const setTestData = useTestStore(s => s.setTestData);
   const [groundTruthSession, setGroundTruthSession] = useState<ResearchSessionSummary | null>(null);
+  const [sessionToDelete, setSessionToDelete] = useState<ResearchSessionSummary | null>(null);
+  const [resumingId, setResumingId] = useState<string | null>(null);
 
   const { data: sessions = [], isLoading } = useQuery({
     queryKey: ['researchSessions'],
     queryFn: getResearchSessions,
     showErrorToast: false,
+    // Always refetch when landing here — a session may have completed, been
+    // resumed, or had a recording recovered since this list was last fetched.
+    staleTime: 0,
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (sessionId: string) => deleteResearchSession(sessionId),
+    showSuccessToast: true,
+    successMessage: 'Session deleted',
+    invalidateQueries: ['researchSessions'],
+    onSettled: () => setSessionToDelete(null),
   });
 
   const handleTakeTest = () => {
     navigate('/test/fillup');
   };
 
+  /**
+   * Rehydrate the test flow from an existing session and re-enter past fill-up,
+   * capturing only the runs that are still missing. Full capture metadata is
+   * fetched on demand so the dashboard list can stay lean.
+   */
+  const handleResume = async (session: ResearchSessionSummary, onlyIndex?: number) => {
+    setResumingId(session.session_id);
+    try {
+      const detail = await getResearchSession(session.session_id);
+      const { patient_info: patientInfo, metadata } = detail;
+
+      if (!patientInfo?.name || !patientInfo.dob || !patientInfo.gender || !metadata) {
+        toast.error('This session is missing intake data and cannot be resumed');
+        return;
+      }
+
+      const runs = sessionRuns(detail);
+      const queue = runs
+        .filter(run => !run.uploaded && (onlyIndex === undefined || run.video_index === onlyIndex))
+        .map(run => run.video_index);
+
+      if (queue.length === 0) {
+        toast.info('All videos for this session are already recorded');
+        return;
+      }
+
+      resetTestData();
+      setTestData({
+        session_id: detail.session_id,
+        patient_info: {
+          name: patientInfo.name,
+          dob: patientInfo.dob,
+          gender: patientInfo.gender as 'male' | 'female' | 'other',
+          guardian_phone: patientInfo.guardian_phone ?? '',
+        },
+        metadata,
+        data_usage_consent: detail.data_usage_consent ?? true,
+        stimulus_versions: detail.stimulus_versions ?? ['2'],
+        video_count: detail.stimulus_versions?.length ?? 1,
+        run_queue: queue,
+        current_video_index: queue[0],
+        questionnaire_completed: detail.has_questionnaire,
+        uploaded_test_ids: [],
+      });
+      navigate('/test/instructions');
+    } catch (error) {
+      console.error('[Dashboard] Failed to resume session', error);
+      toast.error(error instanceof Error ? error.message : 'Could not open this session');
+    } finally {
+      setResumingId(null);
+    }
+  };
+
   return (
     <>
       <title>Aignosis Research | Dashboard</title>
       <div className="flex flex-col space-y-8 grow">
+        <PendingUploadsCard />
         <Card className="bg-linear-to-br from-primary/5 via-primary/10 to-primary/5 border-primary/20">
           <CardContent className="p-6 py-3">
             <div className="flex gap-6 justify-between items-center">
@@ -52,7 +158,8 @@ export const Dashboard = () => {
                   Start a research screening session
                 </h2>
                 <p className="text-sm text-muted-foreground">
-                  Choose one or two complete video capture runs, then complete one questionnaire
+                  Choose which stimulus videos to capture (a full run each), then complete one
+                  questionnaire
                 </p>
               </div>
               <Button onClick={handleTakeTest} size="lg" className="gap-2 shrink-0">
@@ -92,52 +199,122 @@ export const Dashboard = () => {
                   <TableHeader>
                     <TableRow className="hover:bg-muted/50 bg-muted/80">
                       <TableHead>Participant</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Video Runs</TableHead>
-                      <TableHead>Session ID</TableHead>
+                      <TableHead>Videos recorded</TableHead>
+                      <TableHead>Questionnaire</TableHead>
                       <TableHead>DOB</TableHead>
                       <TableHead>Ground Truth</TableHead>
+                      <TableHead>Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {sessions.map(session => (
-                      <TableRow key={session.session_id}>
-                        <TableCell className="font-medium capitalize">
-                          {session.patient_info?.name || 'Unknown'}
-                        </TableCell>
-                        <TableCell>{session.status || '—'}</TableCell>
-                        <TableCell>
-                          {session.uploaded_test_ids?.length || 0} / {session.video_count || '—'}
-                        </TableCell>
-                        <TableCell className="font-mono text-sm text-muted-foreground">
-                          {session.session_id.slice(0, 8)}...
-                        </TableCell>
-                        <TableCell className="text-sm text-muted-foreground">
-                          {formatDateShort(session.patient_info?.dob)}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            {session.ground_truth?.clinician_diagnosis ? (
-                              <Badge variant="secondary">
-                                {DIAGNOSIS_LABELS[session.ground_truth.clinician_diagnosis] ??
-                                  session.ground_truth.clinician_diagnosis}
+                    {sessions.map(session => {
+                      const runs = sessionRuns(session);
+                      const missingRuns = runs.filter(run => !run.uploaded);
+                      const isResuming = resumingId === session.session_id;
+
+                      return (
+                        <TableRow key={session.session_id}>
+                          <TableCell className="font-medium capitalize">
+                            {session.patient_info?.name || 'Unknown'}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex flex-wrap gap-1.5 items-center">
+                              {runs.length === 0 ? (
+                                <span className="text-muted-foreground">—</span>
+                              ) : (
+                                runs.map(run => (
+                                  <Badge
+                                    key={run.video_index}
+                                    variant={run.uploaded ? 'secondary' : 'outline'}
+                                    className={
+                                      run.uploaded
+                                        ? 'gap-1'
+                                        : 'gap-1 text-muted-foreground border-dashed'
+                                    }
+                                  >
+                                    {run.uploaded ? (
+                                      <Check className="size-3" />
+                                    ) : (
+                                      <Minus className="size-3" />
+                                    )}
+                                    Video {run.version}
+                                  </Badge>
+                                ))
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            {session.has_questionnaire ? (
+                              <Badge variant="secondary" className="gap-1">
+                                <Check className="size-3" />
+                                Recorded
                               </Badge>
                             ) : (
-                              <span className="text-muted-foreground">—</span>
+                              <span className="text-muted-foreground">Not filled</span>
                             )}
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="size-7"
-                              aria-label="Edit ground truth"
-                              onClick={() => setGroundTruthSession(session)}
-                            >
-                              <Pencil className="size-3.5" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                          </TableCell>
+                          <TableCell className="text-sm text-muted-foreground">
+                            {formatDateShort(session.patient_info?.dob)}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              {session.ground_truth?.clinician_diagnosis ? (
+                                <Badge variant="secondary">
+                                  {DIAGNOSIS_LABELS[session.ground_truth.clinician_diagnosis] ??
+                                    session.ground_truth.clinician_diagnosis}
+                                </Badge>
+                              ) : (
+                                <span className="text-muted-foreground">—</span>
+                              )}
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="size-7"
+                                aria-label="Edit ground truth"
+                                onClick={() => setGroundTruthSession(session)}
+                              >
+                                <Pencil className="size-3.5" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex gap-1 items-center">
+                              {missingRuns.length > 0 &&
+                                missingRuns.map(run => (
+                                  <Button
+                                    key={run.video_index}
+                                    variant="ghost"
+                                    size="sm"
+                                    className="gap-1.5 px-2 h-7"
+                                    disabled={isResuming}
+                                    onClick={() => void handleResume(session, run.video_index)}
+                                  >
+                                    <RotateCcw className="size-3.5" />
+                                    Record video {run.version}
+                                  </Button>
+                                ))}
+
+                              {isPendingSession(session) && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="size-7 text-destructive hover:text-destructive"
+                                  aria-label="Delete session"
+                                  disabled={isResuming}
+                                  onClick={() => setSessionToDelete(session)}
+                                >
+                                  <Trash2 className="size-3.5" />
+                                </Button>
+                              )}
+
+                              {missingRuns.length === 0 && !isPendingSession(session) && (
+                                <span className="text-muted-foreground">—</span>
+                              )}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </div>
@@ -145,8 +322,43 @@ export const Dashboard = () => {
           </CardContent>
         </Card>
 
+        <AlertDialog
+          open={!!sessionToDelete}
+          onOpenChange={open => {
+            if (!open) setSessionToDelete(null);
+          }}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete this pending session?</AlertDialogTitle>
+              <AlertDialogDescription>
+                The session
+                {sessionToDelete?.patient_info?.name ? (
+                  <>
+                    {' '}
+                    for <span className="capitalize">{sessionToDelete.patient_info.name}</span>
+                  </>
+                ) : null}{' '}
+                has no uploaded recordings and will be permanently deleted.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                disabled={deleteMutation.isPending}
+                onClick={() => {
+                  if (sessionToDelete) deleteMutation.mutate(sessionToDelete.session_id);
+                }}
+              >
+                {deleteMutation.isPending ? 'Deleting...' : 'Delete'}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
         {groundTruthSession && (
           <GroundTruthDialog
+            key={groundTruthSession.session_id}
             sessionId={groundTruthSession.session_id}
             participantName={groundTruthSession.patient_info?.name}
             initial={groundTruthSession.ground_truth}

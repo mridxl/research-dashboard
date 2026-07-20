@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
 
 import { AxiosError } from 'axios';
-import { Mail } from 'lucide-react';
+import { Eye, EyeOff, Mail } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
@@ -17,6 +17,7 @@ export const LoginPage = () => {
   const isAuthenticated = useAuthStore(s => s.isAuthenticated);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
@@ -56,7 +57,9 @@ export const LoginPage = () => {
     <div className="flex min-h-screen bg-background">
       <div className="hidden relative overflow-hidden lg:flex lg:w-1/2 bg-linear-to-br from-primary via-primary/90 to-primary/70 dark:from-background dark:via-card dark:to-muted">
         <div className="relative z-10 flex flex-col justify-center px-16">
-          <h1 className="text-5xl font-bold text-white dark:text-foreground mb-4">Aignosis Research</h1>
+          <h1 className="text-5xl font-bold text-white dark:text-foreground mb-4">
+            Aignosis Research
+          </h1>
           <p className="text-xl text-white/80 dark:text-muted-foreground leading-relaxed">
             Secure data collection for
             <br />
@@ -69,7 +72,9 @@ export const LoginPage = () => {
         <div className="mx-auto space-y-6 w-full max-w-md">
           <Card className="shadow-xl bg-card border-border">
             <CardHeader className="pb-4 space-y-2">
-              <CardTitle className="text-3xl font-bold text-card-foreground">Research Login</CardTitle>
+              <CardTitle className="text-3xl font-bold text-card-foreground">
+                Research Login
+              </CardTitle>
               <CardDescription className="text-base text-muted-foreground">
                 Sign in with your research account email and password
               </CardDescription>
@@ -89,13 +94,25 @@ export const LoginPage = () => {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="password">Password</Label>
-                  <Input
-                    id="password"
-                    type="password"
-                    autoComplete="current-password"
-                    value={password}
-                    onChange={e => setPassword(e.target.value)}
-                  />
+                  <div className="relative">
+                    <Input
+                      id="password"
+                      type={showPassword ? 'text' : 'password'}
+                      autoComplete="current-password"
+                      value={password}
+                      onChange={e => setPassword(e.target.value)}
+                      className="pr-10"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(prev => !prev)}
+                      className="flex absolute inset-y-0 right-0 items-center px-3 text-muted-foreground hover:text-foreground"
+                      aria-label={showPassword ? 'Hide password' : 'Show password'}
+                      tabIndex={-1}
+                    >
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
                 </div>
                 <Button type="submit" disabled={isSubmitting} className="w-full h-11">
                   {isSubmitting ? 'Signing in...' : 'Sign in'}

@@ -5,7 +5,7 @@ import { X } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { PhoneInput } from '@/components/auth/PhoneInput';
-import { createResearchSession } from '@/lib/api/research';
+import { createResearchSession, type StimulusVersion } from '@/lib/api/research';
 import { fillupFormSchema } from '@/lib/validations/fillup';
 import { validate } from '@/lib/validations/validate';
 import { useTestStore } from '@/stores/testStore';
@@ -23,6 +23,12 @@ const GENDERS = [
   { value: 'female', label: 'Female' },
   { value: 'other', label: 'Other' },
 ] as const;
+
+// Play order is fixed: version 1 (original) before version 2 (new) when both are selected.
+const STIMULUS_VERSION_OPTIONS: { value: StimulusVersion; label: string; hint: string }[] = [
+  { value: '1', label: 'Video 1', hint: 'AST stimulus - V1' },
+  { value: '2', label: 'Video 2', hint: 'AST stimulus - V2' },
+];
 
 interface PrefillData {
   patientName?: string;
@@ -64,7 +70,7 @@ export const Fillup = () => {
   const [patientGender, setPatientGender] = useState(prefillData?.patientGender || '');
   const [screenSize, setScreenSize] = useState(Number(localStorage.getItem('screenSize')) || 0);
   const [selectedLanguage, setSelectedLanguage] = useState('');
-  const [videoCount, setVideoCount] = useState<1 | 2>(1);
+  const [selectedVersions, setSelectedVersions] = useState<StimulusVersion[]>(['1', '2']);
   const [showConsentModal, setShowConsentModal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const dobInputRef = useRef<HTMLInputElement>(null);
@@ -96,7 +102,7 @@ export const Fillup = () => {
       guardianPhone,
       screenSize,
       selectedLanguage: selectedLanguage || undefined,
-      videoCount,
+      stimulusVersions: selectedVersions,
       consent,
     });
 
@@ -117,13 +123,16 @@ export const Fillup = () => {
       camera_used: '',
     };
 
+    // Canonical play order: version 1 before version 2 regardless of click order.
+    const orderedVersions = [...data.stimulusVersions].sort() as StimulusVersion[];
+
     setIsSubmitting(true);
     try {
       const session = await createResearchSession({
         patient_info: patientInfo,
         metadata,
         data_usage_consent: data.consent,
-        video_count: data.videoCount,
+        stimulus_versions: orderedVersions,
       });
 
       setTestData({
@@ -131,8 +140,11 @@ export const Fillup = () => {
         patient_info: patientInfo,
         metadata,
         data_usage_consent: data.consent,
+        stimulus_versions: session.stimulus_versions,
         video_count: session.video_count,
+        run_queue: session.stimulus_versions.map((_, index) => index + 1),
         current_video_index: 1,
+        questionnaire_completed: false,
         uploaded_test_ids: [],
       });
 
@@ -300,26 +312,40 @@ export const Fillup = () => {
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-[180px_1fr] items-center gap-2 sm:gap-4">
-                <label
-                  htmlFor="video-count-select"
-                  className="text-base font-medium text-left text-foreground"
-                >
-                  Video Runs
-                </label>
-                <select
-                  id="video-count-select"
-                  value={videoCount}
-                  required
-                  onChange={e => setVideoCount(Number(e.target.value) as 1 | 2)}
-                  className="w-full rounded-lg border border-border bg-input px-4 py-2.5 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-                >
-                  <option value={1} className="bg-popover text-popover-foreground">
-                    1 video run
-                  </option>
-                  <option value={2} className="bg-popover text-popover-foreground">
-                    2 video runs (full capture each time)
-                  </option>
-                </select>
+                <span className="text-base font-medium text-left text-foreground">
+                  Videos to capture
+                </span>
+                <div className="flex flex-col gap-2 w-full rounded-lg border border-border bg-input px-4 py-2.5">
+                  {STIMULUS_VERSION_OPTIONS.map(option => (
+                    <label
+                      key={option.value}
+                      htmlFor={`stimulus-version-${option.value}`}
+                      className="flex items-center gap-3 cursor-pointer text-foreground"
+                    >
+                      <input
+                        id={`stimulus-version-${option.value}`}
+                        type="checkbox"
+                        checked={selectedVersions.includes(option.value)}
+                        onChange={e =>
+                          setSelectedVersions(prev =>
+                            e.target.checked
+                              ? [...prev, option.value]
+                              : prev.filter(v => v !== option.value)
+                          )
+                        }
+                        className="w-4 h-4 accent-primary focus:ring-2 focus:ring-ring"
+                      />
+                      <span className="text-sm">
+                        {option.label}{' '}
+                        <span className="text-muted-foreground">({option.hint})</span>
+                      </span>
+                    </label>
+                  ))}
+                  <p className="text-xs text-muted-foreground">
+                    Each selected video is a full capture run (webcam check, calibration,
+                    recording).
+                  </p>
+                </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-[180px_1fr] items-center gap-2 sm:gap-4">

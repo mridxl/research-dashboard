@@ -33,8 +33,9 @@ export const TestError = () => {
 
       <div className="mt-6 max-w-2xl px-6 font-raleway text-foreground">
         <p className="text-center text-lg">
-          We encountered an issue while uploading your assessment data. Please return to the
-          dashboard and try again. If the problem persists, please contact support.
+          We encountered an issue while uploading your assessment data. Recorded videos are saved on
+          this device and will upload automatically from the dashboard. If the problem persists,
+          please contact support.
           <br />
           <br />
         </p>

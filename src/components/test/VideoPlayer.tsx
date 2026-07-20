@@ -2,12 +2,11 @@ import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
 
 import Hls from 'hls.js';
 
+import type { StimulusVersion } from '@/lib/api/research';
 import { useTestStore } from '@/stores/testStore';
 
-export type StimulusVersion = '1' | '2';
-
 // Stimulus playlists per version: "1" = original AST video, "2" = new AST video
-// (same URLs as core/dashboard post-7b14c62). Two-run sessions play v1 then v2.
+// (same URLs as core/dashboard post-7b14c62). Run N plays the session's stimulus_versions[N-1].
 const STIMULUS_URLS: Record<StimulusVersion, Record<'english' | 'hindi', string>> = {
   '1': {
     english:

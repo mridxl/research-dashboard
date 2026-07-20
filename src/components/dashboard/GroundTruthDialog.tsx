@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -20,9 +20,9 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { useMutation } from '@/hooks/useMutation';
 import {
-  putSessionGroundTruth,
   type ClinicianDiagnosis,
   type GroundTruth,
+  putSessionGroundTruth,
 } from '@/lib/api/research';
 import { groundTruthSchema } from '@/lib/validations/groundTruth';
 
@@ -50,18 +50,13 @@ export const GroundTruthDialog = ({
   open,
   onOpenChange,
 }: GroundTruthDialogProps) => {
-  const [diagnosis, setDiagnosis] = useState<string>(DIAGNOSIS_UNSET);
-  const [notes, setNotes] = useState('');
+  // Seeded at mount: the parent unmounts this dialog when it closes and keys it
+  // by session, so a fresh session always gets a fresh form.
+  const [diagnosis, setDiagnosis] = useState<string>(
+    initial?.clinician_diagnosis ?? DIAGNOSIS_UNSET
+  );
+  const [notes, setNotes] = useState(initial?.notes ?? '');
   const [validationError, setValidationError] = useState<string | null>(null);
-
-  // Re-seed the form each time the dialog opens for a (possibly different) session.
-  useEffect(() => {
-    if (open) {
-      setDiagnosis(initial?.clinician_diagnosis ?? DIAGNOSIS_UNSET);
-      setNotes(initial?.notes ?? '');
-      setValidationError(null);
-    }
-  }, [open, initial]);
 
   const saveMutation = useMutation({
     mutationFn: (payload: GroundTruth) => putSessionGroundTruth(sessionId, payload),
@@ -93,8 +88,13 @@ export const GroundTruthDialog = ({
         <DialogHeader>
           <DialogTitle>Ground Truth</DialogTitle>
           <DialogDescription>
-            Clinical labels for {participantName ? <span className="capitalize">{participantName}</span> : 'this session'}. Editable any time — labels
-            often arrive after the session.
+            Clinical labels for{' '}
+            {participantName ? (
+              <span className="capitalize">{participantName}</span>
+            ) : (
+              'this session'
+            )}
+            . Editable any time — labels often arrive after the session.
           </DialogDescription>
         </DialogHeader>
 

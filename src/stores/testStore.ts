@@ -1,6 +1,10 @@
 import { create } from 'zustand';
 
-import type { ResearchTestUploadResponse, UploadProgressPayload } from '@/lib/api/research';
+import type {
+  ResearchTestUploadResponse,
+  StimulusVersion,
+  UploadProgressPayload,
+} from '@/lib/api/research';
 import type { QuestionnaireData } from '@/lib/api/screening';
 
 export interface PatientInfo {
@@ -20,8 +24,17 @@ export interface TestMetadata {
 
 export interface TestData {
   session_id: string | null;
-  video_count: 1 | 2;
+  /** Which stimulus versions this session captures, in play order (run N plays index N-1). */
+  stimulus_versions: StimulusVersion[];
+  video_count: number;
+  /**
+   * video_index values still to capture in this visit, in order. A fresh session
+   * queues every run; a resumed one queues only the runs not yet uploaded.
+   */
+  run_queue: number[];
   current_video_index: number;
+  /** True when the session already has a questionnaire (resumed session) — skip that step. */
+  questionnaire_completed: boolean;
   uploaded_test_ids: string[];
   patient_info: PatientInfo;
   metadata: TestMetadata;
@@ -38,8 +51,11 @@ export interface TestData {
 
 const initialTestData: TestData = {
   session_id: null,
+  stimulus_versions: ['2'],
   video_count: 1,
+  run_queue: [1],
   current_video_index: 1,
+  questionnaire_completed: false,
   uploaded_test_ids: [],
   patient_info: {
     name: '',

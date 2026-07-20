@@ -7,6 +7,7 @@ import { Questionnaire, type QuestionnaireData } from '@/components/test/Questio
 import { TestSubmitLoader } from '@/components/test/TestSubmitLoader';
 import { submitResearchQuestionnaire } from '@/lib/api/research';
 import { autismFacts } from '@/lib/constants/facts';
+import { queryClient } from '@/lib/react-query/queryClient';
 import { useTestStore } from '@/stores/testStore';
 
 const NEW_FACT_INTERVAL = 7000;
@@ -34,6 +35,15 @@ export const QuestionnairePage = () => {
       navigate('/dashboard', { replace: true });
     }
   }, [uploadPromises.length, testData.session_id, navigate]);
+
+  // A resumed session may already have its questionnaire — the server allows
+  // only one per session, so skip straight to awaiting the uploads.
+  useEffect(() => {
+    if (testData.questionnaire_completed && !isFormFilled) {
+      setSkippedQuestionnaire(true);
+      setIsFormFilled(true);
+    }
+  }, [testData.questionnaire_completed, isFormFilled]);
 
   useEffect(() => {
     if (isFormFilled) {
@@ -73,6 +83,10 @@ export const QuestionnairePage = () => {
         } else {
           setSubmissionPhase('finishing');
         }
+
+        // The session now has its uploads (and questionnaire); drop the cached
+        // dashboard list so the completed session shows without a manual reload.
+        void queryClient.invalidateQueries({ queryKey: ['researchSessions'] });
 
         clearUploadPromises();
         navigate('/test/thankyou', { replace: true });

@@ -4,13 +4,23 @@ import { useNavigate } from 'react-router';
 import { toast } from 'sonner';
 
 import { ExitTestDialog } from '@/components/test/ExitTestDialog';
-import { VideoPlayer, type StimulusVersion } from '@/components/test/VideoPlayer';
-import { uploadResearchTestData } from '@/lib/api/research';
+import { VideoPlayer } from '@/components/test/VideoPlayer';
+import { type StimulusVersion, uploadResearchTestData } from '@/lib/api/research';
 import {
   blobTypeForRecordedChunks,
   createScreeningMediaRecorder,
   SCREENING_VIDEO_CONSTRAINTS,
 } from '@/lib/media/screeningRecording';
+import {
+  buildUploadFormData,
+  clearUploadInFlight,
+  deletePendingUpload,
+  markUploadInFlight,
+  type PendingUploadBlobs,
+  pendingUploadId,
+  type PendingUploadMeta,
+  savePendingUpload,
+} from '@/lib/uploads/pendingUploads';
 import { encryptPassword, encryptVideo } from '@/lib/utils/encryptionUtils';
 import { useTestStore } from '@/stores/testStore';
 
@@ -37,11 +47,10 @@ export const VideoPlayback = () => {
   const hasEndedRef = useRef(false);
   const isNavigatingRef = useRef(false);
 
-  // Two-run sessions show a different stimulus per run: run 1 plays version "1"
-  // (original AST video), run 2 plays version "2" (new AST video). Single-run
-  // sessions play the current production stimulus (version "2").
+  // Run N plays the stimulus version the researcher selected at fill-up:
+  // stimulus_versions[N-1] ("1" = original AST video, "2" = new AST video).
   const stimulusVersion: StimulusVersion =
-    testData.video_count === 2 && testData.current_video_index === 1 ? '1' : '2';
+    testData.stimulus_versions[testData.current_video_index - 1] ?? '2';
 
   useEffect(() => {
     if (!testData?.patient_info?.name || !testData.session_id) {
@@ -92,11 +101,17 @@ export const VideoPlayback = () => {
   }, [stopAllTracks, stopRecorder]);
 
   const navigateAfterUpload = useCallback(() => {
-    const { current_video_index, video_count } = useTestStore.getState().testData;
-    if (current_video_index < video_count) {
-      setTestData({ current_video_index: current_video_index + 1 });
+    const { current_video_index, run_queue, stimulus_versions } = useTestStore.getState().testData;
+    // Advance through the queue rather than counting up, so a resumed session
+    // captures only the runs it is actually missing.
+    const position = run_queue.indexOf(current_video_index);
+    const nextIndex = position >= 0 ? run_queue[position + 1] : undefined;
+
+    if (nextIndex !== undefined) {
+      setTestData({ current_video_index: nextIndex });
       resetRunCaptureState();
-      toast.info(`Starting video run ${current_video_index + 1} of ${video_count}`);
+      const nextVersion = stimulus_versions[nextIndex - 1] ?? '2';
+      toast.info(`Next: video ${nextVersion} (${position + 2} of ${run_queue.length})`);
       setTimeout(() => navigate('/test/webcam-test', { replace: true }), 0);
       return;
     }
@@ -157,43 +172,56 @@ export const VideoPlayback = () => {
       const encryptedBlob = await encryptVideo(blob, aesKey);
       const encryptedAesKey = await encryptPassword(aesKey);
 
-      const formData = new FormData();
-      formData.append('video_file', encryptedBlob, 'vid.bin');
-      formData.append(
-        'video_encrypted_aes_key',
-        new Blob([encryptedAesKey], { type: 'application/octet-stream' }),
-        'vid_aes.bin'
-      );
-
-      if (testData.encrypted_calibration_points) {
-        formData.append(
-          'encrypted_calibration_points',
-          testData.encrypted_calibration_points,
-          'frames.bin'
-        );
-      }
-      if (testData.encrypted_mirror_frame) {
-        formData.append('encrypted_mirror_frame', testData.encrypted_mirror_frame, 'mirror.bin');
-      }
-      if (testData.encrypted_aes_password) {
-        formData.append('encrypted_aes_password', testData.encrypted_aes_password);
-      }
-
-      formData.append('session_id', testData.session_id);
-      formData.append('video_index', String(testData.current_video_index));
-      formData.append('patient_info', JSON.stringify(testData.patient_info));
-      formData.append('data_usage_consent', String(testData.data_usage_consent));
-      formData.append(
-        'metadata',
-        JSON.stringify({
+      // Persist the encrypted payload BEFORE any network I/O so the recording
+      // survives a closed tab / failed upload; deleted once the server confirms.
+      // (No patient_info sent — the session doc is the SSoT for child info; the
+      // name is kept locally only so the pending-uploads indicator can name it.)
+      const id = pendingUploadId(testData.session_id, testData.current_video_index);
+      const meta: PendingUploadMeta = {
+        id,
+        session_id: testData.session_id,
+        video_index: testData.current_video_index,
+        patient_name: testData.patient_info.name,
+        encrypted_aes_password: testData.encrypted_aes_password,
+        data_usage_consent: testData.data_usage_consent,
+        metadata: {
           ...testData.metadata,
           video_version: stimulusVersion,
-        })
-      );
+        },
+        size_bytes: encryptedBlob.size,
+        created_at: Date.now(),
+        attempts: 0,
+        last_error: null,
+        last_attempt_at: null,
+      };
+      const blobs: PendingUploadBlobs = {
+        id,
+        video_file: encryptedBlob,
+        video_encrypted_aes_key: new Blob([encryptedAesKey], {
+          type: 'application/octet-stream',
+        }),
+        encrypted_calibration_points: testData.encrypted_calibration_points,
+        encrypted_mirror_frame: testData.encrypted_mirror_frame,
+      };
 
-      return uploadResearchTestData(formData, {
-        onUploadProgress: setUploadProgress,
-      });
+      try {
+        await savePendingUpload(meta, blobs);
+      } catch (persistError) {
+        // Storage full/unavailable — proceed with the plain upload rather than
+        // blocking the flow; we just lose the crash safety net for this run.
+        console.warn('[VideoPlayback] Failed to persist pending upload:', persistError);
+      }
+
+      markUploadInFlight(id);
+      try {
+        const response = await uploadResearchTestData(buildUploadFormData(meta, blobs), {
+          onUploadProgress: setUploadProgress,
+        });
+        void deletePendingUpload(id).catch(() => {});
+        return response;
+      } finally {
+        clearUploadInFlight(id);
+      }
     },
     [testData, stimulusVersion, setUploadProgress]
   );
@@ -351,9 +379,11 @@ export const VideoPlayback = () => {
     <div className="dark flex min-h-screen flex-col items-center justify-center bg-background">
       <video ref={webcamRef} autoPlay playsInline muted className="hidden" />
 
-      {testData.video_count > 1 && (
+      {testData.run_queue.length > 1 && (
         <div className="fixed left-4 top-4 z-50 rounded-full bg-black/50 px-4 py-2 text-sm text-white">
-          Video run {testData.current_video_index} of {testData.video_count}
+          Video {stimulusVersion} · run{' '}
+          {testData.run_queue.indexOf(testData.current_video_index) + 1} of{' '}
+          {testData.run_queue.length}
         </div>
       )}
 

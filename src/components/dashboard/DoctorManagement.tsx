@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { toast } from 'sonner';
+
 import { Edit, Plus, Trash2 } from 'lucide-react';
+import { toast } from 'sonner';
 
 import { PhoneInput } from '@/components/auth/PhoneInput';
 import {

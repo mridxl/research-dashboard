@@ -1,8 +1,11 @@
 import axios from 'axios';
 
 import { apiClient } from './client';
-import type { ApiResponse, RSAPublicKey } from './types';
 import type { QuestionnaireData } from './screening';
+import type { ApiResponse, RSAPublicKey } from './types';
+
+/** Stimulus video version: "1" = original AST video, "2" = new AST video. */
+export type StimulusVersion = '1' | '2';
 
 export interface ResearchSessionCreatePayload {
   patient_info: {
@@ -19,12 +22,14 @@ export interface ResearchSessionCreatePayload {
     camera_used: string;
   };
   data_usage_consent: boolean;
-  video_count: 1 | 2;
+  /** Which stimulus versions to capture, in play order. Run N plays stimulus_versions[N-1]. */
+  stimulus_versions: StimulusVersion[];
 }
 
 export interface ResearchSessionCreateResponse {
   session_id: string;
-  video_count: 1 | 2;
+  video_count: number;
+  stimulus_versions: StimulusVersion[];
 }
 
 export interface ResearchTestUploadResponse {
@@ -46,13 +51,35 @@ export interface GroundTruth {
   notes: string | null;
 }
 
+/** One completed capture run, recorded on the session when its upload lands. */
+export interface UploadedRun {
+  video_index: number;
+  video_version: StimulusVersion;
+  tid: string;
+}
+
+/** Lean row for the dashboard list — only what the table renders. */
 export interface ResearchSessionSummary {
   session_id: string;
   status: string;
-  video_count: number;
-  uploaded_test_ids: string[];
-  patient_info?: { name?: string; dob?: string; gender?: string };
+  stimulus_versions?: StimulusVersion[];
+  uploaded_runs: UploadedRun[];
+  has_questionnaire: boolean;
+  patient_info?: { name?: string; dob?: string };
   ground_truth?: GroundTruth | null;
+  created_at?: string | null;
+}
+
+/** Full session, fetched only when resuming so the list stays lean. */
+export interface ResearchSessionDetail extends ResearchSessionSummary {
+  patient_info?: {
+    name?: string;
+    dob?: string;
+    gender?: string;
+    guardian_phone?: string;
+  };
+  metadata?: ResearchSessionCreatePayload['metadata'];
+  data_usage_consent?: boolean;
   timestamps?: Record<string, unknown>;
 }
 
@@ -79,9 +106,8 @@ export const createResearchSession = async (
 };
 
 export const getResearchSessions = async (): Promise<ResearchSessionSummary[]> => {
-  const { data } = await apiClient.get<ApiResponse<{ items: ResearchSessionSummary[] }>>(
-    '/research/sessions'
-  );
+  const { data } =
+    await apiClient.get<ApiResponse<{ items: ResearchSessionSummary[] }>>('/research/sessions');
   if (!data.success) {
     throw new Error(data.message || 'Failed to fetch research sessions');
   }
@@ -179,6 +205,24 @@ export const uploadResearchTestData = async (
       );
       await delay(backoff);
     }
+  }
+};
+
+export const getResearchSession = async (sessionId: string): Promise<ResearchSessionDetail> => {
+  const { data } = await apiClient.get<ApiResponse<ResearchSessionDetail>>(
+    `/research/session/${sessionId}`
+  );
+  if (!data.success) {
+    throw new Error(data.message || 'Failed to fetch session');
+  }
+  return data.details;
+};
+
+/** Delete an abandoned session. Server rejects (409) unless it has no uploaded recordings. */
+export const deleteResearchSession = async (sessionId: string): Promise<void> => {
+  const { data } = await apiClient.delete<ApiResponse>(`/research/session/${sessionId}`);
+  if (!data.success) {
+    throw new Error(data.message || 'Failed to delete session');
   }
 };
 
