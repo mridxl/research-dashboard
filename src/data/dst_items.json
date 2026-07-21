@@ -1,0 +1,618 @@
+[
+  {
+    "id": 1,
+    "text": "Birth cry present",
+    "pass_age_months": 3,
+    "age_band_label": "3M",
+    "is_language": false
+  },
+  {
+    "id": 2,
+    "text": "Equal bilateral movements",
+    "pass_age_months": 3,
+    "age_band_label": "3M",
+    "is_language": false
+  },
+  {
+    "id": 3,
+    "text": "Responds to bell",
+    "pass_age_months": 3,
+    "age_band_label": "3M",
+    "is_language": false
+  },
+  {
+    "id": 4,
+    "text": "Vocalises sounds",
+    "pass_age_months": 3,
+    "age_band_label": "3M",
+    "is_language": true
+  },
+  {
+    "id": 5,
+    "text": "Smiles spontaneously",
+    "pass_age_months": 3,
+    "age_band_label": "3M",
+    "is_language": false
+  },
+  {
+    "id": 6,
+    "text": "Eyes follow moving object",
+    "pass_age_months": 3,
+    "age_band_label": "3M",
+    "is_language": false
+  },
+  {
+    "id": 7,
+    "text": "Head steady",
+    "pass_age_months": 3,
+    "age_band_label": "3M",
+    "is_language": false
+  },
+  {
+    "id": 8,
+    "text": "Reaches for objects",
+    "pass_age_months": 6,
+    "age_band_label": "6M",
+    "is_language": false
+  },
+  {
+    "id": 9,
+    "text": "Laughs aloud",
+    "pass_age_months": 6,
+    "age_band_label": "6M",
+    "is_language": true
+  },
+  {
+    "id": 10,
+    "text": "Recognises mother",
+    "pass_age_months": 6,
+    "age_band_label": "6M",
+    "is_language": false
+  },
+  {
+    "id": 11,
+    "text": "Vocalises for pleasure/babbles",
+    "pass_age_months": 6,
+    "age_band_label": "6M",
+    "is_language": true
+  },
+  {
+    "id": 12,
+    "text": "Carries objects to mouth",
+    "pass_age_months": 6,
+    "age_band_label": "6M",
+    "is_language": false
+  },
+  {
+    "id": 13,
+    "text": "Rolls over",
+    "pass_age_months": 6,
+    "age_band_label": "6M",
+    "is_language": false
+  },
+  {
+    "id": 14,
+    "text": "Imitates speech sounds",
+    "pass_age_months": 9,
+    "age_band_label": "9M",
+    "is_language": true
+  },
+  {
+    "id": 15,
+    "text": "Sits by self",
+    "pass_age_months": 9,
+    "age_band_label": "9M",
+    "is_language": false
+  },
+  {
+    "id": 16,
+    "text": "Thumb finger grasp",
+    "pass_age_months": 9,
+    "age_band_label": "9M",
+    "is_language": false
+  },
+  {
+    "id": 17,
+    "text": "Shows curiosity",
+    "pass_age_months": 9,
+    "age_band_label": "9M",
+    "is_language": false
+  },
+  {
+    "id": 18,
+    "text": "Says 3 words, 'dada', 'mama', etc.",
+    "pass_age_months": 12,
+    "age_band_label": "1Y",
+    "is_language": true
+  },
+  {
+    "id": 19,
+    "text": "Stands alone well",
+    "pass_age_months": 12,
+    "age_band_label": "1Y",
+    "is_language": false
+  },
+  {
+    "id": 20,
+    "text": "Follows simple instructions",
+    "pass_age_months": 12,
+    "age_band_label": "1Y",
+    "is_language": false
+  },
+  {
+    "id": 21,
+    "text": "Cooperates for dressing",
+    "pass_age_months": 12,
+    "age_band_label": "1Y",
+    "is_language": false
+  },
+  {
+    "id": 22,
+    "text": "Many intelligible words",
+    "pass_age_months": 18,
+    "age_band_label": "1½Y",
+    "is_language": true
+  },
+  {
+    "id": 23,
+    "text": "Walks, runs well",
+    "pass_age_months": 18,
+    "age_band_label": "1½Y",
+    "is_language": false
+  },
+  {
+    "id": 24,
+    "text": "Indicates wants",
+    "pass_age_months": 18,
+    "age_band_label": "1½Y",
+    "is_language": false
+  },
+  {
+    "id": 25,
+    "text": "Scribbles spontaneously",
+    "pass_age_months": 18,
+    "age_band_label": "1½Y",
+    "is_language": false
+  },
+  {
+    "id": 26,
+    "text": "Says sentences of 2/3 words",
+    "pass_age_months": 24,
+    "age_band_label": "2Y",
+    "is_language": true
+  },
+  {
+    "id": 27,
+    "text": "Points out objects in pictures",
+    "pass_age_months": 24,
+    "age_band_label": "2Y",
+    "is_language": false
+  },
+  {
+    "id": 28,
+    "text": "Shows body parts",
+    "pass_age_months": 24,
+    "age_band_label": "2Y",
+    "is_language": false
+  },
+  {
+    "id": 29,
+    "text": "Participates in play",
+    "pass_age_months": 24,
+    "age_band_label": "2Y",
+    "is_language": false
+  },
+  {
+    "id": 30,
+    "text": "Copies O",
+    "pass_age_months": 36,
+    "age_band_label": "3Y",
+    "is_language": false
+  },
+  {
+    "id": 31,
+    "text": "Relates experiences",
+    "pass_age_months": 36,
+    "age_band_label": "3Y",
+    "is_language": true
+  },
+  {
+    "id": 32,
+    "text": "Knows names, uses of common objects",
+    "pass_age_months": 36,
+    "age_band_label": "3Y",
+    "is_language": false
+  },
+  {
+    "id": 33,
+    "text": "Begins to ask 'Why?'",
+    "pass_age_months": 36,
+    "age_band_label": "3Y",
+    "is_language": true
+  },
+  {
+    "id": 34,
+    "text": "Takes food by self",
+    "pass_age_months": 36,
+    "age_band_label": "3Y",
+    "is_language": false
+  },
+  {
+    "id": 35,
+    "text": "Toilet control present",
+    "pass_age_months": 36,
+    "age_band_label": "3Y",
+    "is_language": false
+  },
+  {
+    "id": 36,
+    "text": "Buttons up",
+    "pass_age_months": 48,
+    "age_band_label": "4Y",
+    "is_language": false
+  },
+  {
+    "id": 37,
+    "text": "Comprehends 'hunger', 'cold'",
+    "pass_age_months": 48,
+    "age_band_label": "4Y",
+    "is_language": false
+  },
+  {
+    "id": 38,
+    "text": "Plays cooperatively with children",
+    "pass_age_months": 48,
+    "age_band_label": "4Y",
+    "is_language": false
+  },
+  {
+    "id": 39,
+    "text": "Repeats 3 digits",
+    "pass_age_months": 48,
+    "age_band_label": "4Y",
+    "is_language": false
+  },
+  {
+    "id": 40,
+    "text": "Relates stories",
+    "pass_age_months": 48,
+    "age_band_label": "4Y",
+    "is_language": true
+  },
+  {
+    "id": 41,
+    "text": "Defines words",
+    "pass_age_months": 60,
+    "age_band_label": "5Y",
+    "is_language": true
+  },
+  {
+    "id": 42,
+    "text": "Makes simple drawing",
+    "pass_age_months": 60,
+    "age_band_label": "5Y",
+    "is_language": false
+  },
+  {
+    "id": 43,
+    "text": "Dresses with no supervision",
+    "pass_age_months": 60,
+    "age_band_label": "5Y",
+    "is_language": false
+  },
+  {
+    "id": 44,
+    "text": "Describes actions in pictures",
+    "pass_age_months": 60,
+    "age_band_label": "5Y",
+    "is_language": true
+  },
+  {
+    "id": 45,
+    "text": "Gives sensible answers to questions",
+    "pass_age_months": 60,
+    "age_band_label": "5Y",
+    "is_language": true
+  },
+  {
+    "id": 46,
+    "text": "Goes about neighbourhood",
+    "pass_age_months": 60,
+    "age_band_label": "5Y",
+    "is_language": false
+  },
+  {
+    "id": 47,
+    "text": "Can name primary colours",
+    "pass_age_months": 72,
+    "age_band_label": "6Y",
+    "is_language": false
+  },
+  {
+    "id": 48,
+    "text": "Plays games governed by rules",
+    "pass_age_months": 72,
+    "age_band_label": "6Y",
+    "is_language": false
+  },
+  {
+    "id": 49,
+    "text": "Writes simple words",
+    "pass_age_months": 72,
+    "age_band_label": "6Y",
+    "is_language": false
+  },
+  {
+    "id": 50,
+    "text": "Gains admission to school",
+    "pass_age_months": 72,
+    "age_band_label": "6Y",
+    "is_language": false
+  },
+  {
+    "id": 51,
+    "text": "Enjoys constructive play",
+    "pass_age_months": 72,
+    "age_band_label": "6Y",
+    "is_language": false
+  },
+  {
+    "id": 52,
+    "text": "Adapts to home, school",
+    "pass_age_months": 84,
+    "age_band_label": "7Y",
+    "is_language": false
+  },
+  {
+    "id": 53,
+    "text": "Tells differences of objects",
+    "pass_age_months": 84,
+    "age_band_label": "7Y",
+    "is_language": false
+  },
+  {
+    "id": 54,
+    "text": "Spells, reads, writes simple words",
+    "pass_age_months": 84,
+    "age_band_label": "7Y",
+    "is_language": false
+  },
+  {
+    "id": 55,
+    "text": "Enjoys group play",
+    "pass_age_months": 84,
+    "age_band_label": "7Y",
+    "is_language": false
+  },
+  {
+    "id": 56,
+    "text": "Knows comparative value of coins",
+    "pass_age_months": 84,
+    "age_band_label": "7Y",
+    "is_language": false
+  },
+  {
+    "id": 57,
+    "text": "Combs hair by self",
+    "pass_age_months": 96,
+    "age_band_label": "8Y",
+    "is_language": false
+  },
+  {
+    "id": 58,
+    "text": "Makes small purchases",
+    "pass_age_months": 96,
+    "age_band_label": "8Y",
+    "is_language": false
+  },
+  {
+    "id": 59,
+    "text": "Competition in school/play",
+    "pass_age_months": 96,
+    "age_band_label": "8Y",
+    "is_language": false
+  },
+  {
+    "id": 60,
+    "text": "Tells time",
+    "pass_age_months": 96,
+    "age_band_label": "8Y",
+    "is_language": false
+  },
+  {
+    "id": 61,
+    "text": "Tells day, month, year",
+    "pass_age_months": 108,
+    "age_band_label": "9Y",
+    "is_language": true
+  },
+  {
+    "id": 62,
+    "text": "Reads on own initiative",
+    "pass_age_months": 108,
+    "age_band_label": "9Y",
+    "is_language": true
+  },
+  {
+    "id": 63,
+    "text": "Recognises property rights",
+    "pass_age_months": 108,
+    "age_band_label": "9Y",
+    "is_language": false
+  },
+  {
+    "id": 64,
+    "text": "Favourite of fairy tales",
+    "pass_age_months": 108,
+    "age_band_label": "9Y",
+    "is_language": true
+  },
+  {
+    "id": 65,
+    "text": "Muscle coordination games (marbles)",
+    "pass_age_months": 108,
+    "age_band_label": "9Y",
+    "is_language": false
+  },
+  {
+    "id": 66,
+    "text": "Bathes self unaided",
+    "pass_age_months": 108,
+    "age_band_label": "9Y",
+    "is_language": false
+  },
+  {
+    "id": 67,
+    "text": "Cooperates keenly with companions",
+    "pass_age_months": 120,
+    "age_band_label": "10Y",
+    "is_language": false
+  },
+  {
+    "id": 68,
+    "text": "Has various hobbies, collections",
+    "pass_age_months": 120,
+    "age_band_label": "10Y",
+    "is_language": false
+  },
+  {
+    "id": 69,
+    "text": "Goes about home town freely",
+    "pass_age_months": 120,
+    "age_band_label": "10Y",
+    "is_language": false
+  },
+  {
+    "id": 70,
+    "text": "Sex differences in play become marked",
+    "pass_age_months": 120,
+    "age_band_label": "10Y",
+    "is_language": false
+  },
+  {
+    "id": 71,
+    "text": "Can stay away from home (camps)",
+    "pass_age_months": 120,
+    "age_band_label": "10Y",
+    "is_language": false
+  },
+  {
+    "id": 72,
+    "text": "Writes occasional short letters",
+    "pass_age_months": 132,
+    "age_band_label": "11Y",
+    "is_language": true
+  },
+  {
+    "id": 73,
+    "text": "Comprehends social situations",
+    "pass_age_months": 132,
+    "age_band_label": "11Y",
+    "is_language": false
+  },
+  {
+    "id": 74,
+    "text": "Physical feats liked",
+    "pass_age_months": 132,
+    "age_band_label": "11Y",
+    "is_language": false
+  },
+  {
+    "id": 75,
+    "text": "Able to discuss problems",
+    "pass_age_months": 132,
+    "age_band_label": "11Y",
+    "is_language": true
+  },
+  {
+    "id": 76,
+    "text": "Enjoys books, newspapers, magazines",
+    "pass_age_months": 144,
+    "age_band_label": "12Y",
+    "is_language": true
+  },
+  {
+    "id": 77,
+    "text": "More independent in spending",
+    "pass_age_months": 144,
+    "age_band_label": "12Y",
+    "is_language": false
+  },
+  {
+    "id": 78,
+    "text": "Capable of self-criticism",
+    "pass_age_months": 144,
+    "age_band_label": "12Y",
+    "is_language": false
+  },
+  {
+    "id": 79,
+    "text": "Shows foresight, planning, judgement",
+    "pass_age_months": 156,
+    "age_band_label": "13Y",
+    "is_language": false
+  },
+  {
+    "id": 80,
+    "text": "Learns from experience",
+    "pass_age_months": 156,
+    "age_band_label": "13Y",
+    "is_language": false
+  },
+  {
+    "id": 81,
+    "text": "Plays difficult games",
+    "pass_age_months": 156,
+    "age_band_label": "13Y",
+    "is_language": false
+  },
+  {
+    "id": 82,
+    "text": "Interested in dressing up",
+    "pass_age_months": 156,
+    "age_band_label": "13Y",
+    "is_language": false
+  },
+  {
+    "id": 83,
+    "text": "Understands abstract ideas (justice)",
+    "pass_age_months": 156,
+    "age_band_label": "13Y",
+    "is_language": false
+  },
+  {
+    "id": 84,
+    "text": "Makes sensible plans for future (job)",
+    "pass_age_months": 180,
+    "age_band_label": "15Y",
+    "is_language": false
+  },
+  {
+    "id": 85,
+    "text": "Follows current events",
+    "pass_age_months": 180,
+    "age_band_label": "15Y",
+    "is_language": true
+  },
+  {
+    "id": 86,
+    "text": "Buys own clothing",
+    "pass_age_months": 180,
+    "age_band_label": "15Y",
+    "is_language": false
+  },
+  {
+    "id": 87,
+    "text": "Systematises own work",
+    "pass_age_months": 180,
+    "age_band_label": "15Y",
+    "is_language": false
+  },
+  {
+    "id": 88,
+    "text": "Purchases for others",
+    "pass_age_months": 180,
+    "age_band_label": "15Y",
+    "is_language": false
+  }
+]

@@ -1,5 +1,8 @@
 import axios from 'axios';
 
+import type { PsychEvalOutcome } from '@/lib/assessments/outcomes';
+import type { StoredAssessmentId } from '@/lib/assessments/registry';
+
 import { apiClient } from './client';
 import type { QuestionnaireData } from './screening';
 import type { ApiResponse, RSAPublicKey } from './types';
@@ -38,17 +41,46 @@ export interface ResearchTestUploadResponse {
   video_index: number;
 }
 
+/** Legacy single-select label, kept so pre-existing sessions still read back. */
 export type ClinicianDiagnosis = 'autistic' | 'not_autistic' | 'uncertain';
 
 /**
- * Clinical ground-truth labels for a session. All instrument fields are
- * optional/nullable so future additions (CARS2 score, INCLEN result, ISAA,
- * M-CHAT-R, ...) are additive — mirror of the middleware GroundTruth schema.
+ * Clinical ground-truth labels for a session — mirror of the middleware
+ * GroundTruth schema.
+ *
+ * `outcome_codes` is the current multi-select label set (same options the
+ * psychologists use on the internal dashboard). `clinician_diagnosis` is the
+ * superseded single-select field: still read for old sessions, never written.
  */
 export interface GroundTruth {
   schema_version: number;
   clinician_diagnosis: ClinicianDiagnosis | null;
+  outcome_codes: PsychEvalOutcome[] | null;
+  custom_result_paragraph: string | null;
   notes: string | null;
+}
+
+/**
+ * A saved assessment as returned by the API: the submitted payload plus the
+ * server-computed score fields, which vary per instrument (total_score,
+ * classification, asd_present, developmental_quotient, ...).
+ */
+export interface StoredAssessment {
+  session_id: string;
+  patient_info: AssessmentPatientInfo;
+  filled_by?: string;
+  updated_at?: string | null;
+  [key: string]: unknown;
+}
+
+/** Patient info captured on every instrument form. */
+export interface AssessmentPatientInfo {
+  name: string;
+  gender: 'Male' | 'Female' | 'Others';
+  date_of_birth: string;
+  assessment_date: string;
+  age: string | number;
+  notes?: string | null;
 }
 
 /** One completed capture run, recorded on the session when its upload lands. */
@@ -67,6 +99,8 @@ export interface ResearchSessionSummary {
   has_questionnaire: boolean;
   patient_info?: { name?: string; dob?: string };
   ground_truth?: GroundTruth | null;
+  /** Which assessments have been filled in — names only; bodies are fetched per-tab. */
+  assessment_names?: StoredAssessmentId[];
   created_at?: string | null;
 }
 
@@ -247,6 +281,59 @@ export const putSessionGroundTruth = async (
   if (!data.success) {
     throw new Error(data.message || 'Failed to save ground truth');
   }
+};
+
+/**
+ * Fetch one assessment. Resolves to null when it has not been filled in yet —
+ * the server returns `details: null` rather than a 404 for that case.
+ */
+export const getSessionAssessment = async <T = StoredAssessment>(
+  sessionId: string,
+  assessmentId: StoredAssessmentId
+): Promise<T | null> => {
+  const { data } = await apiClient.get<ApiResponse<T | null>>(
+    `/research/session/${sessionId}/assessments/${assessmentId}`
+  );
+  if (!data.success) {
+    throw new Error(data.message || 'Failed to fetch assessment');
+  }
+  return data.details ?? null;
+};
+
+/** Fetch every assessment recorded on a session, keyed by assessment id. */
+export const getSessionAssessments = async (
+  sessionId: string
+): Promise<Partial<Record<StoredAssessmentId, StoredAssessment>>> => {
+  const { data } = await apiClient.get<
+    ApiResponse<{ assessments: Partial<Record<StoredAssessmentId, StoredAssessment>> }>
+  >(`/research/session/${sessionId}/assessments`);
+  if (!data.success) {
+    throw new Error(data.message || 'Failed to fetch assessments');
+  }
+  return data.details.assessments ?? {};
+};
+
+/**
+ * Create or replace a single assessment. Scoped to one instrument so saving
+ * ISAA cannot clobber a concurrently-saved CARS2 — unlike the ground-truth PUT,
+ * which replaces the whole map.
+ *
+ * The server recomputes totals and classifications, so the response is the
+ * authoritative record rather than an echo of what was sent.
+ */
+export const patchSessionAssessment = async <T = StoredAssessment>(
+  sessionId: string,
+  assessmentId: StoredAssessmentId,
+  payload: unknown
+): Promise<T> => {
+  const { data } = await apiClient.patch<ApiResponse<T>>(
+    `/research/session/${sessionId}/assessments/${assessmentId}`,
+    payload
+  );
+  if (!data.success) {
+    throw new Error(data.message || 'Failed to save assessment');
+  }
+  return data.details;
 };
 
 export const submitResearchQuestionnaire = async (
