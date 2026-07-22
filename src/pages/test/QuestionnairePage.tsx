@@ -1,13 +1,19 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 
+import { isAxiosError } from 'axios';
 import { toast } from 'sonner';
 
 import { Questionnaire, type QuestionnaireData } from '@/components/test/Questionnaire';
 import { TestSubmitLoader } from '@/components/test/TestSubmitLoader';
-import { submitResearchQuestionnaire } from '@/lib/api/research';
+import { type ResearchTestUploadResponse, submitResearchQuestionnaire } from '@/lib/api/research';
+import type { QuestionnaireData as ApiQuestionnaireData } from '@/lib/api/screening';
 import { autismFacts } from '@/lib/constants/facts';
+import { putPendingQuestionnaire } from '@/lib/offline/db';
+import { getUidFromToken } from '@/lib/offline/jwt';
+import { processSyncQueue } from '@/lib/offline/syncManager';
 import { queryClient } from '@/lib/react-query/queryClient';
+import { useAuthStore } from '@/stores/authStore';
 import { useTestStore } from '@/stores/testStore';
 
 const NEW_FACT_INTERVAL = 7000;
@@ -67,21 +73,64 @@ export const QuestionnairePage = () => {
       try {
         setSubmissionPhase('upload');
         const uploadResponses = await Promise.all(uploadPromises);
-        const lastTid = uploadResponses[uploadResponses.length - 1]?.tid;
+        // Runs saved locally (offline) resolve without a tid.
+        const serverResponses = uploadResponses.filter(
+          (r): r is ResearchTestUploadResponse => !('offline' in r)
+        );
+        const anyLocal = serverResponses.length < uploadResponses.length;
+        const lastTid = serverResponses[serverResponses.length - 1]?.tid;
         if (lastTid) {
           setTestData({ test_id: lastTid });
         }
 
-        if (hasQuestionnaire && queuedQuestionnaire) {
+        const questionnaireData =
+          hasQuestionnaire && queuedQuestionnaire
+            ? {
+                ...queuedQuestionnaire,
+                signsBefore3Years: queuedQuestionnaire.signsBefore3Years || '',
+                strugglesDailyTasks: queuedQuestionnaire.strugglesDailyTasks || '',
+              }
+            : null;
+
+        const queueQuestionnaireLocally = async (data: ApiQuestionnaireData) => {
+          const uid = getUidFromToken(useAuthStore.getState().token, true) ?? '';
+          await putPendingQuestionnaire({
+            session_id: testData.session_id!,
+            uid,
+            questionnaire: data,
+            syncStatus: 'pending',
+            lastError: null,
+            attempts: 0,
+            createdAt: Date.now(),
+          });
+        };
+
+        if (questionnaireData) {
           setSubmissionPhase('questionnaire');
-          const questionnaireData = {
-            ...queuedQuestionnaire,
-            signsBefore3Years: queuedQuestionnaire.signsBefore3Years || '',
-            strugglesDailyTasks: queuedQuestionnaire.strugglesDailyTasks || '',
-          };
-          await submitResearchQuestionnaire(testData.session_id, questionnaireData);
+          if (anyLocal || !navigator.onLine) {
+            // The server 409s until every run is uploaded, and at least one run
+            // is still local — queue the questionnaire for the sync engine.
+            await queueQuestionnaireLocally(questionnaireData);
+          } else {
+            try {
+              await submitResearchQuestionnaire(testData.session_id, questionnaireData);
+            } catch (err) {
+              // Connection died — the answers are irreplaceable, so persist
+              // them locally instead of failing the whole flow.
+              if (isAxiosError(err) && !err.response) {
+                await queueQuestionnaireLocally(questionnaireData);
+              } else {
+                throw err;
+              }
+            }
+          }
         } else {
           setSubmissionPhase('finishing');
+        }
+
+        if (anyLocal) {
+          toast.info('Saved on this device — everything will upload automatically when online.');
+          void processSyncQueue();
         }
 
         // The session now has its uploads (and questionnaire); drop the cached

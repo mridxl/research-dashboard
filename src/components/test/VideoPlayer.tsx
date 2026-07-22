@@ -3,24 +3,8 @@ import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
 import Hls from 'hls.js';
 
 import type { StimulusVersion } from '@/lib/api/research';
+import { STIMULUS_URLS } from '@/lib/offline/stimulus';
 import { useTestStore } from '@/stores/testStore';
-
-// Stimulus playlists per version: "1" = original AST video, "2" = new AST video
-// (same URLs as core/dashboard post-7b14c62). Run N plays the session's stimulus_versions[N-1].
-const STIMULUS_URLS: Record<StimulusVersion, Record<'english' | 'hindi', string>> = {
-  '1': {
-    english:
-      'https://aignosis-test-videos.storage.googleapis.com/Test_Videos/ast%20eng%20vid%20hls%20format/playlist.m3u8',
-    hindi:
-      'https://aignosis-test-videos.storage.googleapis.com/Test_Videos/ast%20hindi%20vid%20hls%20format/playlist.m3u8',
-  },
-  '2': {
-    english:
-      'https://aignosis-test-videos.storage.googleapis.com/Test_Videos/new%20ast%20eng%20vid%20hls%20format/playlist.m3u8',
-    hindi:
-      'https://aignosis-test-videos.storage.googleapis.com/Test_Videos/new%20ast%20hindi%20vid%20hls%20format/playlist.m3u8',
-  },
-};
 
 interface VideoPlayerProps {
   videoVersion: StimulusVersion;

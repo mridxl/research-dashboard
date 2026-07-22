@@ -101,6 +101,10 @@ export function useTestStatusStream(
 
   const connect = useCallback(async () => {
     if (!token || !enabled || isConnectingRef.current) return;
+    // Offline: don't burn reconnect attempts against a dead network — the
+    // 'online' listener below re-establishes the stream when connectivity
+    // returns.
+    if (!navigator.onLine) return;
 
     // Cancel any existing connection
     disconnect();
@@ -246,6 +250,17 @@ export function useTestStatusStream(
       disconnect();
     };
   }, [enabled, token, connect, disconnect]);
+
+  // Reconnect (with a fresh attempt budget) whenever connectivity returns.
+  useEffect(() => {
+    if (!enabled) return;
+    const handleOnline = () => {
+      reconnectAttemptsRef.current = 0;
+      void connect();
+    };
+    window.addEventListener('online', handleOnline);
+    return () => window.removeEventListener('online', handleOnline);
+  }, [enabled, connect]);
 
   return {
     disconnect,

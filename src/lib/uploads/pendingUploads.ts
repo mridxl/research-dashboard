@@ -1,7 +1,7 @@
 import { isAxiosError } from 'axios';
-import Dexie, { type EntityTable } from 'dexie';
 
 import { type UploadProgressPayload, uploadResearchTestData } from '@/lib/api/research';
+import { db, getUncreatedSessionIds } from '@/lib/offline/db';
 
 /**
  * Local-first safety net for research uploads (NOT the clinic offline subsystem).
@@ -26,73 +26,12 @@ import { type UploadProgressPayload, uploadResearchTestData } from '@/lib/api/re
  * uploads never pulls ~65 MB per row into memory.
  */
 
-/** Small, listable record — safe to hold in React state. */
-export interface PendingUploadMeta {
-  /** `${session_id}:${video_index}` — mirrors the server's idempotency key. */
-  id: string;
-  session_id: string;
-  video_index: number;
-  /** Child's name, for display in the pending-uploads indicator. */
-  patient_name: string;
-  encrypted_aes_password: string;
-  data_usage_consent: boolean;
-  /** Per-run metadata JSON (includes video_version). */
-  metadata: Record<string, unknown>;
-  size_bytes: number;
-  created_at: number;
-  attempts: number;
-  last_error: string | null;
-  last_attempt_at: number | null;
-}
-
-/** The heavy half — loaded only when an upload is actually attempted. */
-export interface PendingUploadBlobs {
-  id: string;
-  video_file: Blob;
-  video_encrypted_aes_key: Blob;
-  encrypted_calibration_points: Blob | null;
-  encrypted_mirror_frame: Blob | null;
-}
-
-const db = new Dexie('aignosis-research') as Dexie & {
-  pendingUploads: EntityTable<PendingUploadMeta, 'id'>;
-  pendingUploadBlobs: EntityTable<PendingUploadBlobs, 'id'>;
-};
-
-// v1 stored blobs inline on pendingUploads; v2 splits them out.
-db.version(1).stores({ pendingUploads: 'id, session_id, created_at' });
-db.version(2)
-  .stores({
-    pendingUploads: 'id, session_id, created_at',
-    pendingUploadBlobs: 'id',
-  })
-  .upgrade(async tx => {
-    const legacyRows = await tx.table('pendingUploads').toArray();
-    for (const row of legacyRows) {
-      if (!row.video_file) continue;
-      await tx.table('pendingUploadBlobs').put({
-        id: row.id,
-        video_file: row.video_file,
-        video_encrypted_aes_key: row.video_encrypted_aes_key,
-        encrypted_calibration_points: row.encrypted_calibration_points ?? null,
-        encrypted_mirror_frame: row.encrypted_mirror_frame ?? null,
-      });
-      await tx.table('pendingUploads').put({
-        id: row.id,
-        session_id: row.session_id,
-        video_index: row.video_index,
-        patient_name: row.patient_name ?? '',
-        encrypted_aes_password: row.encrypted_aes_password,
-        data_usage_consent: row.data_usage_consent,
-        metadata: row.metadata,
-        size_bytes: row.video_file?.size ?? 0,
-        created_at: row.created_at,
-        attempts: 0,
-        last_error: null,
-        last_attempt_at: null,
-      });
-    }
-  });
+// The Dexie instance (and the v1/v2 schema history for these two tables) lives
+// in src/lib/offline/db.ts so the offline subsystem's tables share one database
+// declaration. The record types are re-exported here so existing imports keep
+// working.
+export type { PendingUploadBlobs, PendingUploadMeta } from '@/lib/offline/db';
+import type { PendingUploadBlobs, PendingUploadMeta } from '@/lib/offline/db';
 
 export const pendingUploadId = (sessionId: string, videoIndex: number) =>
   `${sessionId}:${videoIndex}`;
@@ -237,9 +176,14 @@ export const flushPendingUploads = async (): Promise<FlushResult | null> => {
 
   try {
     const rows = await listPendingUploads();
+    // Sessions created offline must reach the server before their runs can
+    // upload (the upload endpoint 404s on a missing session). The sync manager
+    // replays session creation first; skip runs whose session is still owed.
+    const uncreatedSessions = await getUncreatedSessionIds();
 
     for (const meta of rows) {
       if (inFlightIds.has(meta.id)) continue;
+      if (uncreatedSessions.has(meta.session_id)) continue;
 
       const blobs = await db.pendingUploadBlobs.get(meta.id);
       if (!blobs) {

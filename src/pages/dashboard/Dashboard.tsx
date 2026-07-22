@@ -5,7 +5,10 @@ import { Check, Minus, Pencil, Play, RotateCcw, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { AssessmentSheet } from '@/components/dashboard/AssessmentSheet';
+import { DraftRecoveryBanner } from '@/components/dashboard/DraftRecoveryBanner';
+import { OfflinePackCard } from '@/components/dashboard/OfflinePackCard';
 import { PendingUploadsCard } from '@/components/dashboard/PendingUploadsCard';
+import { StorageQuotaBanner } from '@/components/dashboard/StorageQuotaBanner';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -32,12 +35,15 @@ import { useMutation } from '@/hooks/useMutation';
 import { useQuery } from '@/hooks/useQuery';
 import {
   deleteResearchSession,
-  getResearchSession,
-  getResearchSessions,
   type ResearchSessionSummary,
   type StimulusVersion,
 } from '@/lib/api/research';
 import { getPsychEvalOutcomeLabel } from '@/lib/assessments/outcomes';
+import {
+  getResearchSessionOfflineAware,
+  getResearchSessionsOfflineAware,
+  LOCAL_SESSION_STATUS,
+} from '@/lib/offline/sessions';
 import { formatDateShort } from '@/lib/utils';
 import { useTestStore } from '@/stores/testStore';
 
@@ -81,7 +87,7 @@ export const Dashboard = () => {
 
   const { data: sessions = [], isLoading } = useQuery({
     queryKey: ['researchSessions'],
-    queryFn: getResearchSessions,
+    queryFn: getResearchSessionsOfflineAware,
     showErrorToast: false,
     // Always refetch when landing here — a session may have completed, been
     // resumed, or had a recording recovered since this list was last fetched.
@@ -108,7 +114,7 @@ export const Dashboard = () => {
   const handleResume = async (session: ResearchSessionSummary, onlyIndex?: number) => {
     setResumingId(session.session_id);
     try {
-      const detail = await getResearchSession(session.session_id);
+      const detail = await getResearchSessionOfflineAware(session.session_id);
       const { patient_info: patientInfo, metadata } = detail;
 
       if (!patientInfo?.name || !patientInfo.dob || !patientInfo.gender || !metadata) {
@@ -157,7 +163,10 @@ export const Dashboard = () => {
     <>
       <title>Aignosis Research | Dashboard</title>
       <div className="flex flex-col space-y-8 grow">
+        <StorageQuotaBanner />
+        <DraftRecoveryBanner />
         <PendingUploadsCard />
+        <OfflinePackCard />
         <Card className="bg-linear-to-br from-primary/5 via-primary/10 to-primary/5 border-primary/20">
           <CardContent className="p-6 py-3">
             <div className="flex gap-6 justify-between items-center">
@@ -219,11 +228,22 @@ export const Dashboard = () => {
                       const runs = sessionRuns(session);
                       const missingRuns = runs.filter(run => !run.uploaded);
                       const isResuming = resumingId === session.session_id;
+                      const isLocalOnly = session.status === LOCAL_SESSION_STATUS;
 
                       return (
                         <TableRow key={session.session_id}>
                           <TableCell className="font-medium capitalize">
-                            {session.patient_info?.name || 'Unknown'}
+                            <span className="flex flex-wrap gap-1.5 items-center">
+                              {session.patient_info?.name || 'Unknown'}
+                              {isLocalOnly && (
+                                <Badge
+                                  variant="outline"
+                                  className="text-[11px] font-normal normal-case border-amber-500/60 text-amber-600 dark:text-amber-400"
+                                >
+                                  On this device — not yet synced
+                                </Badge>
+                              )}
+                            </span>
                           </TableCell>
                           <TableCell>
                             <div className="flex flex-wrap gap-1.5 items-center">
@@ -281,15 +301,17 @@ export const Dashboard = () => {
                                   {session.assessment_names?.length === 1 ? '' : 's'}
                                 </Badge>
                               )}
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="size-7"
-                                aria-label="Edit ground truth and assessments"
-                                onClick={() => setGroundTruthSession(session)}
-                              >
-                                <Pencil className="size-3.5" />
-                              </Button>
+                              {!isLocalOnly && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="size-7"
+                                  aria-label="Edit ground truth and assessments"
+                                  onClick={() => setGroundTruthSession(session)}
+                                >
+                                  <Pencil className="size-3.5" />
+                                </Button>
+                              )}
                             </div>
                           </TableCell>
                           <TableCell>
@@ -309,7 +331,7 @@ export const Dashboard = () => {
                                   </Button>
                                 ))}
 
-                              {isPendingSession(session) && (
+                              {isPendingSession(session) && !isLocalOnly && (
                                 <Button
                                   variant="ghost"
                                   size="icon"

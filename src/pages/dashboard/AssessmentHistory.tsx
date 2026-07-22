@@ -390,25 +390,8 @@ export const AssessmentHistory = () => {
                             </TableCell>
                             <TableCell className="px-1.5 2xl:px-4 py-2 2xl:py-3.5">
                               <div className="flex justify-center">
-                                {assessment.status === 'REPORT_GENERATED' ? (
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    asChild
-                                    className="h-7 2xl:h-8 w-[72px] 2xl:w-[88px] text-xs 2xl:text-sm gap-1 hover:bg-primary/10 hover:text-primary"
-                                  >
-                                    <a
-                                      href={`https://storage.googleapis.com/ast-reports/${assessment.pid}/${id}.pdf`}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      title="View PDF report"
-                                    >
-                                      <FileText className="w-3 h-3 2xl:w-3.5 2xl:h-3.5" />
-                                      <span className="hidden 2xl:inline">Report</span>
-                                    </a>
-                                  </Button>
-                                ) : isFailedStatus(assessment.status) ||
-                                  isIncompleteVideoStatus(assessment.status) ? (
+                                {isFailedStatus(assessment.status) ||
+                                isIncompleteVideoStatus(assessment.status) ? (
                                   <Button
                                     variant="outline"
                                     size="sm"

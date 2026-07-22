@@ -28,13 +28,14 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useQuery } from '@/hooks/useQuery';
-import { getSessionAssessment, type ResearchSessionSummary } from '@/lib/api/research';
+import { type ResearchSessionSummary } from '@/lib/api/research';
 import {
   RESEARCH_ASSESSMENT_OPTIONS,
   type ResearchAssessmentId,
   STORED_ASSESSMENT_IDS,
   type StoredAssessmentId,
 } from '@/lib/assessments/registry';
+import { getSessionAssessmentOfflineAware, isUnsyncedAssessment } from '@/lib/offline/assessments';
 import { cn, formatDateShort } from '@/lib/utils';
 
 interface AssessmentSheetProps {
@@ -64,7 +65,7 @@ export const AssessmentSheet = ({ session, open, onOpenChange }: AssessmentSheet
 
   const assessmentQuery = useQuery({
     queryKey: ['researchAssessment', sessionId, activeTab],
-    queryFn: () => getSessionAssessment(sessionId, activeTab as StoredAssessmentId),
+    queryFn: () => getSessionAssessmentOfflineAware(sessionId, activeTab as StoredAssessmentId),
     enabled: open && isStored(activeTab),
     staleTime: 0,
   });
@@ -92,6 +93,8 @@ export const AssessmentSheet = ({ session, open, onOpenChange }: AssessmentSheet
   // Passed directly rather than via formProps: React ignores a `key` that
   // arrives through a spread.
   const formKey = `${sessionId}-${activeTab}-${existing ? 'saved' : 'new'}`;
+
+  const showUnsyncedBadge = isStored(activeTab) && isUnsyncedAssessment(existing);
 
   const renderAssessment = () => {
     if (isLoadingAssessment) {
@@ -152,6 +155,14 @@ export const AssessmentSheet = ({ session, open, onOpenChange }: AssessmentSheet
             {savedCount > 0 && (
               <Badge variant="secondary" className="text-[11px] font-normal">
                 {savedCount} of {STORED_ASSESSMENT_IDS.length} filled
+              </Badge>
+            )}
+            {showUnsyncedBadge && (
+              <Badge
+                variant="outline"
+                className="text-[11px] font-normal border-amber-500/60 text-amber-600 dark:text-amber-400"
+              >
+                Saved on device — scores pending sync
               </Badge>
             )}
           </div>

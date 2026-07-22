@@ -27,6 +27,12 @@ export interface ResearchSessionCreatePayload {
   data_usage_consent: boolean;
   /** Which stimulus versions to capture, in play order. Run N plays stimulus_versions[N-1]. */
   stimulus_versions: StimulusVersion[];
+  /**
+   * Client-generated UUID for offline-capable creation. When set, the server
+   * derives the session document id as sha1(uid:client_session_id)[:32] — the
+   * same derivation as deriveSessionId() — and a replayed create is idempotent.
+   */
+  client_session_id?: string;
 }
 
 export interface ResearchSessionCreateResponse {
@@ -144,6 +150,35 @@ export const getResearchSessions = async (): Promise<ResearchSessionSummary[]> =
     await apiClient.get<ApiResponse<{ items: ResearchSessionSummary[] }>>('/research/sessions');
   if (!data.success) {
     throw new Error(data.message || 'Failed to fetch research sessions');
+  }
+  return data.details.items;
+};
+
+/** Server-side state of an offline-created session, for reconciliation. */
+export interface ResearchSyncStatusItem {
+  client_session_id: string;
+  /** Derived server document id — null when the create never reached the server. */
+  session_id: string | null;
+  status: string | null;
+  uploaded_runs: UploadedRun[];
+  has_questionnaire: boolean;
+}
+
+/**
+ * Reconcile offline-created sessions with the server. uploaded_runs entries are
+ * only written after GCS upload success, so a run listed here is safe to drop
+ * from the local pending-upload queue.
+ */
+export const getResearchSyncStatus = async (
+  clientSessionIds: string[]
+): Promise<ResearchSyncStatusItem[]> => {
+  if (clientSessionIds.length === 0) return [];
+  const { data } = await apiClient.get<ApiResponse<{ items: ResearchSyncStatusItem[] }>>(
+    '/research/sessions/sync-status',
+    { params: { client_session_ids: clientSessionIds.join(',') } }
+  );
+  if (!data.success) {
+    throw new Error(data.message || 'Failed to fetch sync status');
   }
   return data.details.items;
 };

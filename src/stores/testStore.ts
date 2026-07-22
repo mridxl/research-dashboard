@@ -6,6 +6,10 @@ import type {
   UploadProgressPayload,
 } from '@/lib/api/research';
 import type { QuestionnaireData } from '@/lib/api/screening';
+import type { LocalSubmitResult } from '@/lib/offline/types';
+
+/** A run either uploaded to the server or was saved locally for later sync. */
+export type RunUploadResult = ResearchTestUploadResponse | LocalSubmitResult;
 
 export interface PatientInfo {
   name: string;
@@ -85,8 +89,8 @@ interface TestState {
   setTestData: (data: Partial<TestData> | ((prev: TestData) => Partial<TestData>)) => void;
   resetTestData: () => void;
   resetRunCaptureState: () => void;
-  uploadPromises: Promise<ResearchTestUploadResponse>[];
-  addUploadPromise: (promise: Promise<ResearchTestUploadResponse>) => void;
+  uploadPromises: Promise<RunUploadResult>[];
+  addUploadPromise: (promise: Promise<RunUploadResult>) => void;
   clearUploadPromises: () => void;
   uploadProgress: UploadProgressPayload | null;
   setUploadProgress: (p: UploadProgressPayload | null) => void;

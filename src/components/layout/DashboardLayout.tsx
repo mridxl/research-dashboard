@@ -1,8 +1,13 @@
+import { useEffect } from 'react';
+
 import { AnimatePresence, motion } from 'motion/react';
 
+import { PendingSyncBadge } from '@/components/dashboard/PendingSyncBadge';
 import { ThemeSwitcher } from '@/components/ThemeSwitcher';
 import { Separator } from '@/components/ui/separator';
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
+import { reconcileWithServer } from '@/lib/offline/reconcile';
+import { useOfflineSyncLifecycle } from '@/lib/offline/useSyncStatus';
 
 import { AppSidebar } from './AppSidebar';
 
@@ -13,6 +18,14 @@ interface DashboardLayoutProps {
 }
 
 export const DashboardLayout = ({ children, title, description }: DashboardLayoutProps) => {
+  useOfflineSyncLifecycle();
+
+  // On landing, dedupe the offline queue against what the server already has
+  // (kicks a sync pass itself when done).
+  useEffect(() => {
+    void reconcileWithServer();
+  }, []);
+
   return (
     <SidebarProvider defaultOpen={true}>
       <AppSidebar />
@@ -24,6 +37,7 @@ export const DashboardLayout = ({ children, title, description }: DashboardLayou
             <h1 className="font-serif text-sm font-semibold truncate text-foreground">{title}</h1>
             <p className="text-xs truncate text-muted-foreground">{description}</p>
           </div>
+          <PendingSyncBadge />
           <ThemeSwitcher />
         </header>
         <AnimatePresence>

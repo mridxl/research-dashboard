@@ -3,8 +3,8 @@ import { useState } from 'react';
 import { toast } from 'sonner';
 
 import type { AssessmentPatientInfo } from '@/lib/api/research';
-import { patchSessionAssessment } from '@/lib/api/research';
 import type { StoredAssessmentId } from '@/lib/assessments/registry';
+import { saveAssessmentOfflineAware } from '@/lib/offline/assessments';
 import { handleApiError } from '@/lib/utils/errorHandler';
 
 /**
@@ -73,11 +73,15 @@ export function useAssessmentSave(
 
     setIsLoading(true);
     try {
-      await patchSessionAssessment(sessionId, assessmentId, {
+      const result = await saveAssessmentOfflineAware(sessionId, assessmentId, {
         patient_info: { ...patientInfo, age: patientInfo.age ?? '' },
         ...payload,
       });
-      toast.success(`${label} assessment saved`);
+      if (result.queued) {
+        toast.info(`${label} saved on this device — scores will be computed when it syncs online.`);
+      } else {
+        toast.success(`${label} assessment saved`);
+      }
       onSave?.();
     } catch (error: unknown) {
       console.error(`Error saving ${label} assessment:`, error);

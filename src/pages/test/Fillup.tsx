@@ -1,13 +1,24 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router';
 
+import { isAxiosError } from 'axios';
 import { X } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { PhoneInput } from '@/components/auth/PhoneInput';
-import { createResearchSession, type StimulusVersion } from '@/lib/api/research';
+import {
+  createResearchSession,
+  type ResearchSessionCreatePayload,
+  type StimulusVersion,
+} from '@/lib/api/research';
+import { estimateOfflineStorageUsage, putPendingSession } from '@/lib/offline/db';
+import { getUidFromToken } from '@/lib/offline/jwt';
+import { canTakeTestOffline } from '@/lib/offline/resourceCache';
+import { deriveSessionId } from '@/lib/offline/session';
+import type { StimulusLanguage } from '@/lib/offline/stimulus';
 import { fillupFormSchema } from '@/lib/validations/fillup';
 import { validate } from '@/lib/validations/validate';
+import { useAuthStore } from '@/stores/authStore';
 import { useTestStore } from '@/stores/testStore';
 
 const SCREEN_SIZES = [12.4, 13, 14, 15.6, 17, 19, 21.5, 24, 27, 32] as const;
@@ -126,30 +137,96 @@ export const Fillup = () => {
     // Canonical play order: version 1 before version 2 regardless of click order.
     const orderedVersions = [...data.stimulusVersions].sort() as StimulusVersion[];
 
-    setIsSubmitting(true);
-    try {
-      const session = await createResearchSession({
+    // Sent with every create so the server derives the same session id the
+    // client can compute locally — makes the create replayable/idempotent and
+    // lets a fully-offline device start the test with the final id.
+    const clientSessionId = crypto.randomUUID();
+    const payload: ResearchSessionCreatePayload = {
+      patient_info: patientInfo,
+      metadata,
+      data_usage_consent: data.consent,
+      stimulus_versions: orderedVersions,
+      client_session_id: clientSessionId,
+    };
+
+    const startTest = (sessionId: string) => {
+      setTestData({
+        session_id: sessionId,
         patient_info: patientInfo,
         metadata,
         data_usage_consent: data.consent,
         stimulus_versions: orderedVersions,
-      });
-
-      setTestData({
-        session_id: session.session_id,
-        patient_info: patientInfo,
-        metadata,
-        data_usage_consent: data.consent,
-        stimulus_versions: session.stimulus_versions,
-        video_count: session.video_count,
-        run_queue: session.stimulus_versions.map((_, index) => index + 1),
+        video_count: orderedVersions.length,
+        run_queue: orderedVersions.map((_, index) => index + 1),
         current_video_index: 1,
         questionnaire_completed: false,
         uploaded_test_ids: [],
       });
-
       navigate('/test/instructions');
+    };
+
+    const startOffline = async () => {
+      const token = useAuthStore.getState().token;
+      const uid = getUidFromToken(token, true);
+      const prereqs = await canTakeTestOffline({
+        hasAuth: !!token,
+        uid,
+        videoLanguage: data.selectedLanguage as StimulusLanguage,
+        stimulusVersions: orderedVersions,
+      });
+      if (!prereqs.ok || !uid) {
+        toast.error(
+          `This device isn't prepared for offline tests (missing: ${
+            prereqs.missing.join(', ') || 'authentication'
+          }). Tap "Prepare this device" on the dashboard while online.`
+        );
+        return;
+      }
+
+      const storage = await estimateOfflineStorageUsage();
+      if (storage.percent !== null && storage.percent >= 95) {
+        toast.error(
+          'This device is out of storage. Connect to the internet to sync pending tests before recording more.'
+        );
+        return;
+      }
+
+      const sessionId = await deriveSessionId(uid, clientSessionId);
+      const now = Date.now();
+      await putPendingSession({
+        session_id: sessionId,
+        client_session_id: clientSessionId,
+        uid,
+        payload,
+        video_count: orderedVersions.length,
+        stimulus_versions: orderedVersions,
+        syncStatus: 'pending',
+        lastError: null,
+        attempts: 0,
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      toast.info('No internet — this test will be saved on this device and synced later.');
+      startTest(sessionId);
+    };
+
+    setIsSubmitting(true);
+    try {
+      if (!navigator.onLine) {
+        await startOffline();
+        return;
+      }
+      const session = await createResearchSession(payload);
+      startTest(session.session_id);
     } catch (error) {
+      // A create that died without an HTTP response (network dropped mid-call)
+      // falls back to the offline path — same as starting offline outright.
+      if (isAxiosError(error) && !error.response) {
+        console.warn('[Fillup] Session create unreachable, falling back to offline', error);
+        await startOffline();
+        return;
+      }
       console.error('[Fillup] Failed to create research session', error);
       toast.error(error instanceof Error ? error.message : 'Failed to start research session');
     } finally {

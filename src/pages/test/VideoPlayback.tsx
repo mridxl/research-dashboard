@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 
+import { isAxiosError } from 'axios';
 import { toast } from 'sonner';
 
 import { ExitTestDialog } from '@/components/test/ExitTestDialog';
@@ -11,6 +12,10 @@ import {
   createScreeningMediaRecorder,
   SCREENING_VIDEO_CONSTRAINTS,
 } from '@/lib/media/screeningRecording';
+import { appendDraftChunk, deleteDraftRun, draftRunId } from '@/lib/offline/db';
+import { getUidFromToken } from '@/lib/offline/jwt';
+import { processSyncQueue } from '@/lib/offline/syncManager';
+import type { LocalSubmitResult } from '@/lib/offline/types';
 import {
   buildUploadFormData,
   clearUploadInFlight,
@@ -22,7 +27,25 @@ import {
   savePendingUpload,
 } from '@/lib/uploads/pendingUploads';
 import { encryptPassword, encryptVideo } from '@/lib/utils/encryptionUtils';
+import { useAuthStore } from '@/stores/authStore';
 import { useTestStore } from '@/stores/testStore';
+
+/** Walk err.inner/err.cause to spot a storage-full failure wherever Dexie hid it. */
+const isQuotaExceededError = (err: unknown): boolean => {
+  let current: unknown = err;
+  for (let depth = 0; current && depth < 5; depth += 1) {
+    if (
+      (current instanceof DOMException && current.name === 'QuotaExceededError') ||
+      (current instanceof Error && current.name === 'QuotaExceededError')
+    ) {
+      return true;
+    }
+    current =
+      (current as { inner?: unknown; cause?: unknown }).inner ??
+      (current as { cause?: unknown }).cause;
+  }
+  return false;
+};
 
 export const VideoPlayback = () => {
   const testData = useTestStore(s => s.testData);
@@ -142,7 +165,26 @@ export const VideoPlayback = () => {
       recordedChunksRef.current = [];
 
       recorder.ondataavailable = e => {
-        if (e.data.size > 0) recordedChunksRef.current.push(e.data);
+        if (e.data.size > 0) {
+          recordedChunksRef.current.push(e.data);
+          // Journal each ~2s chunk to IndexedDB so a crash/reload mid-recording
+          // is recoverable (DraftRecoveryBanner). Deleted once the encrypted
+          // payload is persisted to the pending-upload queue.
+          const { session_id, current_video_index, patient_info } =
+            useTestStore.getState().testData;
+          if (session_id) {
+            const uid = getUidFromToken(useAuthStore.getState().token, true) ?? '';
+            void appendDraftChunk(
+              draftRunId(session_id, current_video_index),
+              e.data,
+              recorder.mimeType,
+              uid,
+              patient_info.name
+            ).catch(err => {
+              console.warn('[VideoPlayback] Draft journal write failed', err);
+            });
+          }
+        }
       };
 
       recorder.onerror = event => {
@@ -204,12 +246,33 @@ export const VideoPlayback = () => {
         encrypted_mirror_frame: testData.encrypted_mirror_frame,
       };
 
+      let persisted = false;
       try {
         await savePendingUpload(meta, blobs);
+        persisted = true;
+        // The encrypted payload is now durable — the plaintext draft journal
+        // for this run has served its purpose.
+        void deleteDraftRun(id).catch(() => {});
       } catch (persistError) {
+        if (isQuotaExceededError(persistError)) {
+          toast.error(
+            'This device is out of storage — the recording could not be saved locally. It will upload now, but will be lost if the upload fails.'
+          );
+        }
         // Storage full/unavailable — proceed with the plain upload rather than
         // blocking the flow; we just lose the crash safety net for this run.
         console.warn('[VideoPlayback] Failed to persist pending upload:', persistError);
+      }
+
+      // Offline with the payload safely persisted: don't attempt the network
+      // at all — the sync engine uploads it when connectivity returns.
+      if (!navigator.onLine && persisted) {
+        const localResult: LocalSubmitResult = {
+          offline: true,
+          session_id: meta.session_id,
+          video_index: meta.video_index,
+        };
+        return localResult;
       }
 
       markUploadInFlight(id);
@@ -219,6 +282,19 @@ export const VideoPlayback = () => {
         });
         void deletePendingUpload(id).catch(() => {});
         return response;
+      } catch (uploadError) {
+        // Connection died mid-upload but the payload is persisted — resolve as
+        // a local save instead of failing the flow; sync retries it later.
+        if (persisted && isAxiosError(uploadError) && !uploadError.response) {
+          console.warn('[VideoPlayback] Upload unreachable; keeping local copy for sync');
+          const localResult: LocalSubmitResult = {
+            offline: true,
+            session_id: meta.session_id,
+            video_index: meta.video_index,
+          };
+          return localResult;
+        }
+        throw uploadError;
       } finally {
         clearUploadInFlight(id);
       }
@@ -229,6 +305,13 @@ export const VideoPlayback = () => {
   const finalizeUpload = useCallback(
     (blob: Blob) => {
       const uploadPromise = createUploadPromise(blob).then(response => {
+        if ('offline' in response) {
+          // Saved locally — no server tid yet; the sync engine owns it now.
+          // Kick a pass in case connectivity is flaky rather than fully down
+          // (a genuinely-offline pass just exits early).
+          void processSyncQueue();
+          return response;
+        }
         setTestData(prev => ({
           uploaded_test_ids: [...prev.uploaded_test_ids, response.tid],
           test_id: response.tid,

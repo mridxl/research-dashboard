@@ -1,5 +1,5 @@
-import { apiClient } from '@/lib/api/client';
-import type { ApiResponse, RSAPublicKey } from '@/lib/api/types';
+import type { RSAPublicKey } from '@/lib/api/types';
+import { getRSAPublicKeyCached } from '@/lib/offline/resourceCache';
 
 /**
  * Helper function to convert ArrayBuffer to Base64
@@ -133,18 +133,16 @@ export const encryptMirrorFramePayload = async (
 ): Promise<string> => encryptCalibrationData(payload, password);
 
 /**
- * Encrypt the AES password with RSA public key
+ * Encrypt the AES password with the RSA public key. Uses the IndexedDB-cached
+ * key (24h TTL, refreshed when online) so encryption keeps working offline once
+ * the device has been prepared; pass publicKeyJwk to skip the lookup entirely.
  */
-export const encryptPassword = async (password: string): Promise<string> => {
+export const encryptPassword = async (
+  password: string,
+  publicKeyJwk?: RSAPublicKey
+): Promise<string> => {
   try {
-    // Get RSA public key from API
-    const { data } = await apiClient.get<ApiResponse<RSAPublicKey>>('/research/test/rrpk');
-
-    if (!data.success || !data.details) {
-      throw new Error(data.message || 'Failed to fetch RSA public key');
-    }
-
-    const jwk = data.details;
+    const jwk = publicKeyJwk ?? (await getRSAPublicKeyCached());
     const publicKey = await window.crypto.subtle.importKey(
       'jwk',
       jwk,
